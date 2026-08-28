@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"compTableBody\\\\|tbody.innerHTML\\\\|^}\\);\\\\$\\\\|^}\\)\\\\;\\\\s*$\\\\|^const tbody\\\\|</script>\" \"/Users/nchao/Documents/Nelson Control Center/NE_Dashboard.html\")",
+      "WebFetch(domain:developer.equinix.com)",
+      "WebFetch(domain:api.equinix.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(grep -n \"^</div>$\\\\|^<script>\" \"/Users/nchao/Documents/Nelson Control Center/NE_Dashboard.html\")"
+    ]
+  }
+}

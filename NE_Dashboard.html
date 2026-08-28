@@ -1,0 +1,3274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Network Edge Business Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  /* ─── Equinix Horizon color palette ─────────────── */
+  /* Confirmed from equinix.com/events/horizon:           */
+  /*  Red   #E91C24  (brand mark, primary CTA)            */
+  /*  Blue  #0057A0  (corporate electric blue)            */
+  /*  Aqua  #00C4D4  (Equinix teal/aqua accent)           */
+  /*  Violet #7B2FBE (Horizon 2026 event accent)          */
+  /*  Dark  #0D1117  (Horizon deep navy background)       */
+
+  /* ─── Light theme (default) ─────────────────── */
+  :root {
+    --eq-red:    #E91C24;   /* Equinix brand red — primary accent */
+    --eq-blue:   #0057A0;   /* Equinix electric blue */
+    --eq-teal:   #00C4D4;   /* Equinix aqua */
+    --eq-violet: #7B2FBE;   /* Horizon violet */
+    --eq-dark:   #0D1117;   /* Horizon deep navy */
+    --eq-surface: #ffffff;
+    --eq-surface2: #f3f5fb;
+    --eq-border: #dde3ee;
+    --eq-text: #0D1117;
+    --eq-text-muted: #5a6680;
+    --eq-green: #22c55e;
+    --eq-orange: #f97316;
+    --eq-yellow: #eab308;
+    --eq-purple: #8b5cf6;
+    --eq-pink: #ec4899;
+    --radius: 10px;
+    --shadow: 0 1px 4px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.05);
+    /* chart grid lines */
+    --chart-grid: #edf0f7;
+    /* modal */
+    --modal-bg: #ffffff;
+    --modal-input-bg: #ffffff;
+    --modal-input-border: #dde3ee;
+    --modal-note-bg: #f3f5fb;
+    --modal-h3: #0D1117;
+    --modal-p: #5a6680;
+    --modal-label: #3d4f6e;
+    --btn-secondary-bg: #edf0f7;
+    --btn-secondary-color: #3d4f6e;
+  }
+
+  /* ─── Dark theme (Horizon dark) ─────────────── */
+  [data-theme="dark"] {
+    --eq-surface:  #141C2E;
+    --eq-surface2: #0D1117;
+    --eq-border:   #1E2D4A;
+    --eq-text:     #e8edf5;
+    --eq-text-muted: #8a9ab8;
+    --shadow: 0 1px 4px rgba(0,0,0,.5), 0 4px 20px rgba(0,0,0,.4);
+    --chart-grid: #1E2D4A;
+    /* modal */
+    --modal-bg: #141C2E;
+    --modal-input-bg: #0D1117;
+    --modal-input-border: #1E2D4A;
+    --modal-note-bg: #0D1117;
+    --modal-h3: #e8edf5;
+    --modal-p: #8a9ab8;
+    --modal-label: #8a9ab8;
+    --btn-secondary-bg: #1E2D4A;
+    --btn-secondary-color: #c2ccde;
+  }
+  /* brighter badge/pill text in dark mode */
+  [data-theme="dark"] .badge-green  { color: #4ade80; }
+  [data-theme="dark"] .badge-orange { color: #fb923c; }
+  [data-theme="dark"] .badge-red    { color: #ff6168; }
+  [data-theme="dark"] .badge-purple { color: #b87ef0; }
+  [data-theme="dark"] .badge-teal   { color: #22e0ef; }
+  [data-theme="dark"] .pill-green   { color: #4ade80; }
+  [data-theme="dark"] .pill-red     { color: #ff6168; }
+  [data-theme="dark"] .pill-blue    { color: #4da6f5; }
+
+  /* toggle button */
+  .theme-toggle {
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 20px; padding: 5px 12px;
+    color: #cbd5e1; font-size: 13px; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    transition: background .15s, color .15s;
+    white-space: nowrap;
+  }
+  .theme-toggle:hover { background: rgba(255,255,255,.14); color: #fff; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--eq-surface2);
+    color: var(--eq-text);
+    min-height: 100vh;
+    transition: background .25s, color .25s;
+  }
+  .kpi-card, .chart-card {
+    transition: background .25s, box-shadow .25s;
+  }
+
+  /* ─── Header ──────────────────────────────── */
+  header {
+    background: var(--eq-dark);
+    padding: 0 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 60px;
+    position: sticky; top: 0; z-index: 100;
+    border-bottom: 2px solid var(--eq-red);
+  }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-mark {
+    width: 36px; height: 36px; background: var(--eq-red);
+    border-radius: 6px; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .logo-text {
+    color: white; font-size: 15px; font-weight: 800;
+    letter-spacing: 0.06em; line-height: 1.2;
+  }
+  .logo-text span {
+    display: block; color: rgba(255,255,255,.55);
+    font-size: 10px; font-weight: 400; letter-spacing: 0.04em; margin-top: 1px;
+  }
+  .header-meta { color: #94a3b8; font-size: 12px; }
+  .data-badge {
+    background: rgba(239,68,68,0.15); color: #fca5a5;
+    border: 1px solid rgba(239,68,68,0.3);
+    border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 500;
+    cursor: pointer; transition: opacity .15s;
+  }
+  .data-badge:hover { opacity: 0.8; }
+  .data-badge.live {
+    background: rgba(34,197,94,0.15); color: #86efac;
+    border-color: rgba(34,197,94,0.3);
+  }
+  .data-badge.loading {
+    background: rgba(234,179,8,0.15); color: #fde047;
+    border-color: rgba(234,179,8,0.3);
+  }
+
+  /* ─── Token Modal ──────────────────────────── */
+  .modal-backdrop {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.55); z-index: 200;
+    align-items: center; justify-content: center;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--modal-bg); border-radius: 12px; padding: 28px 32px;
+    width: 520px; max-width: 95vw; box-shadow: 0 20px 60px rgba(0,0,0,.4);
+    transition: background .2s;
+  }
+  .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 6px; color: var(--modal-h3); }
+  .modal p  { font-size: 13px; color: var(--modal-p); margin-bottom: 20px; line-height: 1.5; }
+  .modal label { display: block; font-size: 12px; font-weight: 600; color: var(--modal-label);
+    text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+  .modal input {
+    width: 100%; padding: 9px 12px;
+    border: 1px solid var(--modal-input-border);
+    background: var(--modal-input-bg); color: var(--eq-text);
+    border-radius: 7px; font-size: 13px; font-family: monospace;
+    outline: none; transition: border-color .15s, background .2s; margin-bottom: 12px;
+  }
+  .modal input:focus { border-color: var(--eq-red); }
+  .modal select {
+    width: 100%; padding: 9px 12px;
+    border: 1px solid var(--modal-input-border);
+    background: var(--modal-input-bg); color: var(--eq-text);
+    border-radius: 7px; font-size: 13px; outline: none;
+    transition: border-color .15s, background .2s; margin-bottom: 20px; cursor: pointer;
+  }
+  .modal select:focus { border-color: var(--eq-red); }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .btn {
+    padding: 8px 18px; border-radius: 7px; font-size: 13px;
+    font-weight: 600; cursor: pointer; border: none; transition: opacity .15s;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn-primary { background: var(--eq-red); color: white; }
+  .btn-secondary { background: var(--btn-secondary-bg); color: var(--btn-secondary-color); }
+  .modal-note {
+    background: var(--modal-note-bg); border: 1px solid var(--modal-input-border);
+    border-radius: 7px; padding: 10px 14px; font-size: 12px; color: var(--modal-p);
+    margin-bottom: 20px; font-family: monospace; line-height: 1.6;
+  }
+  .err-msg { font-size: 12px; color: #E91C24; margin-top: -8px; margin-bottom: 12px; display: none; }
+
+  /* ─── Layout ─────────────────────────────── */
+  .layout {
+    display: flex;
+    height: calc(100vh - 60px);
+    overflow: hidden;
+  }
+
+  /* ─── Sidebar ─────────────────────────────── */
+  .sidebar {
+    width: 226px;
+    min-width: 226px;
+    background: #060C16;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 8px 0 32px;
+    border-right: 1px solid rgba(233,28,36,.18);
+    flex-shrink: 0;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,.06) transparent;
+    transition: width .25s;
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,.08); border-radius: 4px; }
+
+  .sidebar-brand {
+    padding: 14px 18px 10px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid rgba(233,28,36,.18);
+    margin-bottom: 8px;
+  }
+  .sidebar-brand-mark {
+    width: 28px; height: 28px; background: var(--eq-red);
+    border-radius: 5px; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .sidebar-brand-name {
+    font-size: 12px; font-weight: 700; color: #ffffff; line-height: 1.2;
+  }
+  .sidebar-brand-name span { color: rgba(255,255,255,.55); display: block; font-weight: 400; font-size: 10px; margin-top: 1px; }
+
+  .sidebar-section {
+    padding: 14px 18px 4px;
+    font-size: 9.5px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: .12em;
+    color: rgba(255,255,255,.4);
+    user-select: none;
+  }
+
+  .tab-btn {
+    display: flex; align-items: center; gap: 9px;
+    width: 100%; padding: 8px 16px 8px 18px;
+    background: none; border: none; border-left: 3px solid transparent;
+    cursor: pointer; color: rgba(255,255,255,.85);
+    font-size: 12.5px; font-weight: 500;
+    text-align: left; line-height: 1.3;
+    transition: color .15s, background .15s, border-color .15s;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tab-btn .nav-icon { font-size: 14px; flex-shrink: 0; opacity: .75; }
+  .tab-btn:hover { color: #ffffff; background: rgba(255,255,255,.06); }
+  .tab-btn.active {
+    color: #ffffff; font-weight: 600;
+    border-left-color: var(--eq-red);
+    background: rgba(233,28,36,.14);
+  }
+  .tab-btn.active .nav-icon { opacity: 1; }
+
+  /* ─── Main content area ───────────────────── */
+  .main-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: var(--eq-surface2);
+    transition: background .25s;
+    height: 100%;
+  }
+  .main-content::-webkit-scrollbar { width: 6px; }
+  .main-content::-webkit-scrollbar-thumb { background: rgba(0,0,0,.12); border-radius: 3px; }
+  [data-theme="dark"] .main-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); }
+
+  /* ─── Tab Panels ──────────────────────────── */
+  .tab-panel { display: none; padding: 28px; }
+  .tab-panel.active { display: block; }
+
+  .section-title {
+    font-size: 20px; font-weight: 700; color: var(--eq-text);
+    margin-bottom: 6px;
+  }
+  .section-subtitle { color: var(--eq-text-muted); font-size: 13px; margin-bottom: 24px; }
+
+  /* ─── KPI Row ─────────────────────────────── */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px; margin-bottom: 28px;
+  }
+  .kpi-card {
+    background: var(--eq-surface);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    border-top: 3px solid transparent;
+  }
+  .kpi-card.blue { border-top-color: var(--eq-blue); }
+  .kpi-card.teal { border-top-color: var(--eq-teal); }
+  .kpi-card.green { border-top-color: var(--eq-green); }
+  .kpi-card.orange { border-top-color: var(--eq-orange); }
+  .kpi-card.red { border-top-color: var(--eq-red); }
+  .kpi-card.purple { border-top-color: var(--eq-purple); }
+  .kpi-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--eq-text-muted); margin-bottom: 8px; }
+  .kpi-value { font-size: 28px; font-weight: 700; color: var(--eq-text); line-height: 1; }
+  .kpi-delta { margin-top: 6px; font-size: 12px; font-weight: 500; }
+  .kpi-delta.up { color: var(--eq-green); }
+  .kpi-delta.down { color: var(--eq-red); }
+  .kpi-delta.neutral { color: var(--eq-text-muted); }
+
+  /* ─── Chart Grid ──────────────────────────── */
+  .chart-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
+    gap: 20px;
+  }
+  .chart-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
+  }
+  .chart-card {
+    background: var(--eq-surface);
+    border-radius: var(--radius);
+    padding: 22px;
+    box-shadow: var(--shadow);
+  }
+  .chart-card.full { grid-column: 1 / -1; }
+  .chart-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; }
+  .chart-title { font-size: 14px; font-weight: 600; color: var(--eq-text); }
+  .chart-subtitle { font-size: 11px; color: var(--eq-text-muted); margin-top: 2px; }
+  .chart-badge {
+    font-size: 10px; font-weight: 600; padding: 3px 8px;
+    border-radius: 20px; white-space: nowrap;
+  }
+  .badge-blue   { background: rgba(0,87,160,.1);    color: var(--eq-blue); }
+  .badge-red    { background: rgba(233,28,36,.1);   color: #E91C24; }
+  .badge-green  { background: rgba(34,197,94,.1);   color: #16a34a; }
+  .badge-orange { background: rgba(249,115,22,.1);  color: #c2410c; }
+  .badge-purple { background: rgba(123,47,190,.1);  color: var(--eq-violet); }
+  .badge-teal   { background: rgba(0,196,212,.1);   color: var(--eq-teal); }
+  .chart-wrap { position: relative; }
+
+  /* ─── Table ───────────────────────────────── */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .data-table th {
+    text-align: left; padding: 10px 14px;
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--eq-text-muted); border-bottom: 1px solid var(--eq-border);
+  }
+  .data-table td { padding: 11px 14px; border-bottom: 1px solid var(--eq-border); }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover td { background: var(--eq-surface2); }
+  .pill {
+    display: inline-block; padding: 2px 8px; border-radius: 12px;
+    font-size: 11px; font-weight: 600;
+  }
+  .pill-green { background: rgba(34,197,94,.12); color: #15803d; }
+  .pill-red { background: rgba(239,68,68,.12); color: #b91c1c; }
+  .pill-blue { background: rgba(0,87,160,.1); color: var(--eq-blue); }
+  .pill-gray { background: rgba(100,116,139,.1); color: #475569; }
+  .win-bar-wrap { display: flex; align-items: center; gap: 8px; }
+  .win-bar { height: 6px; border-radius: 3px; flex-shrink: 0; }
+  .divider { height: 24px; }
+
+  /* ─── Vendor / Service Matrix ─────────────────── */
+  .matrix-wrap { overflow-x: auto; }
+  .matrix-table { width: 100%; border-collapse: separate; border-spacing: 3px; font-size: 12px; }
+  .matrix-table th {
+    padding: 8px 10px; font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--eq-text-muted); text-align: center;
+  }
+  .matrix-table th.row-hdr { text-align: left; min-width: 120px; }
+  .matrix-table td { padding: 9px 8px; text-align: center; border-radius: 5px; font-size: 11px; font-weight: 600; }
+  .heat-0 { background: transparent; color: var(--eq-text-muted); }
+  .heat-1 { background: rgba(233,28,36,.15); color: var(--eq-red); }
+  .heat-2 { background: rgba(233,28,36,.35); color: var(--eq-red); }
+  .heat-3 { background: rgba(233,28,36,.62); color: #fff; }
+  .heat-4 { background: var(--eq-red); color: #fff; }
+  [data-theme="dark"] .heat-1 { background: rgba(233,28,36,.2); color: #ff6b70; }
+  [data-theme="dark"] .heat-2 { background: rgba(233,28,36,.38); color: #ff8085; }
+  [data-theme="dark"] .heat-3 { background: rgba(233,28,36,.62); color: #fff; }
+  .heat-label { font-size: 10px; opacity: .7; }
+
+  /* ─── Topology cards ──────────────────────────── */
+  .topology-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .topology-card {
+    background: var(--eq-surface); border-radius: var(--radius);
+    padding: 18px 20px; box-shadow: var(--shadow);
+    display: flex; flex-direction: column; gap: 10px;
+    transition: background .25s;
+  }
+  .topology-card .tc-title { font-size: 13px; font-weight: 700; color: var(--eq-text); }
+  .topology-card .tc-sub   { font-size: 11px; color: var(--eq-text-muted); }
+  .topology-card .tc-path  {
+    font-size: 12px; font-family: monospace;
+    background: var(--eq-surface2); border-radius: 6px;
+    padding: 8px 12px; color: var(--eq-teal); line-height: 1.8;
+    border: 1px solid var(--eq-border);
+  }
+  .tc-bar-wrap { display: flex; align-items: center; gap: 8px; }
+  .tc-bar { height: 6px; border-radius: 3px; background: var(--eq-red); }
+  .tc-pct { font-size: 12px; font-weight: 700; color: var(--eq-text); }
+
+  /* ─── Segment tags ────────────────────────────── */
+  .seg-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--eq-border); }
+  .seg-row:last-child { border-bottom: none; }
+  .seg-label { font-size: 13px; font-weight: 500; color: var(--eq-text); min-width: 160px; }
+  .seg-bar-track { flex: 1; background: var(--eq-surface2); border-radius: 4px; height: 8px; overflow: hidden; }
+  .seg-bar-fill  { height: 100%; border-radius: 4px; }
+  .seg-pct { font-size: 12px; font-weight: 700; color: var(--eq-text-muted); min-width: 38px; text-align: right; }
+
+  /* ─── Gauge / donut KPI ───────────────────────── */
+  .gauge-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .gauge-item { text-align: center; }
+  .gauge-val  { font-size: 26px; font-weight: 700; color: var(--eq-text); }
+  .gauge-lbl  { font-size: 11px; color: var(--eq-text-muted); margin-top: 3px; }
+  .gauge-delta{ font-size: 11px; font-weight: 600; margin-top: 2px; }
+
+  /* ─── Metro table ─────────────────────────────── */
+  .metro-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .metro-table th {
+    text-align: left; padding: 9px 12px; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .05em; color: var(--eq-text-muted);
+    border-bottom: 1px solid var(--eq-border);
+  }
+  .metro-table td { padding: 10px 12px; border-bottom: 1px solid var(--eq-border); }
+  .metro-table tr:last-child td { border-bottom: none; }
+  .metro-table tr:hover td { background: var(--eq-surface2); }
+  .util-bar { height: 6px; border-radius: 3px; display: inline-block; }
+
+  /* ─── Cohort table ────────────────────────────── */
+  .cohort-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .cohort-table th {
+    padding: 8px 12px; text-align: center; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .05em; color: var(--eq-text-muted);
+    border-bottom: 1px solid var(--eq-border);
+  }
+  .cohort-table th:first-child { text-align: left; }
+  .cohort-table td { padding: 9px 12px; text-align: center; border-bottom: 1px solid var(--eq-border); }
+  .cohort-table td:first-child { text-align: left; font-weight: 600; color: var(--eq-text); }
+  .cohort-cell { padding: 3px 8px; border-radius: 4px; display: inline-block; font-weight: 700; }
+
+  /* ─── Ratio metric cards ─────────────────────── */
+  .ratio-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 28px; }
+  .ratio-card {
+    background: var(--eq-surface); border-radius: var(--radius);
+    padding: 20px; box-shadow: var(--shadow);
+    border-left: 4px solid var(--eq-blue);
+    transition: background .25s;
+  }
+  .ratio-card.teal  { border-left-color: var(--eq-teal); }
+  .ratio-card.green { border-left-color: var(--eq-green); }
+  .ratio-card.orange{ border-left-color: var(--eq-orange); }
+  .ratio-card.purple{ border-left-color: var(--eq-purple); }
+  .ratio-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--eq-text-muted); margin-bottom: 6px; }
+  .ratio-value { font-size: 30px; font-weight: 800; color: var(--eq-text); line-height: 1; }
+  .ratio-desc  { font-size: 11px; color: var(--eq-text-muted); margin-top: 5px; }
+</style>
+</head>
+<body>
+
+<!-- ─── Token Config Modal ──────────────────────────────────────── -->
+<div class="modal-backdrop" id="configModal">
+  <div class="modal">
+    <h3>🔌 Connect to EAP API</h3>
+    <p>Paste your EAP bearer token below. The dashboard will fetch live data and fall back to sample data if any endpoint is unavailable. Your token is stored only in <code>localStorage</code> — never sent anywhere except EAP.</p>
+
+    <label>EAP Bearer Token</label>
+    <input type="password" id="tokenInput" placeholder="ey… (paste token here)" autocomplete="off" />
+    <div class="err-msg" id="tokenErr">Token cannot be empty.</div>
+
+    <label>Base API URL</label>
+    <input type="text" id="baseUrlInput" value="https://eap.equinix.com/api/v1" />
+
+    <label>Auto-refresh interval</label>
+    <select id="refreshSelect">
+      <option value="0">Off</option>
+      <option value="5">Every 5 minutes</option>
+      <option value="15" selected>Every 15 minutes</option>
+      <option value="30">Every 30 minutes</option>
+      <option value="60">Every 60 minutes</option>
+    </select>
+
+    <div class="modal-note">
+      Expected endpoints (adjust paths in <code>EAP.fieldMap</code> if different):<br>
+      GET /network-edge/logos/acquisition<br>
+      GET /network-edge/pipeline<br>
+      GET /network-edge/devices<br>
+      GET /network-edge/partners/mrr<br>
+      GET /network-edge/health<br>
+      GET /network-edge/competitive
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveAndConnect()">Connect &amp; Refresh</button>
+    </div>
+  </div>
+</div>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">
+      <!-- Equinix horizontal-bars logomark (white on brand red) -->
+      <svg width="21" height="15" viewBox="0 0 21 15" xmlns="http://www.w3.org/2000/svg" aria-label="Equinix">
+        <rect x="0" y="0"   width="21" height="3.8" rx="0.6" fill="white"/>
+        <rect x="0" y="5.6" width="15" height="3.8" rx="0.6" fill="white"/>
+        <rect x="0" y="11.2" width="9.5" height="3.8" rx="0.6" fill="white"/>
+      </svg>
+    </div>
+    <div class="logo-text">EQUINIX <span>Network Edge</span></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">
+      <span id="themeIcon">☀️</span>
+      <span id="themeLabel">Light</span>
+    </button>
+    <div class="data-badge" id="statusBadge" onclick="openModal()">⚠ Sample Data — Connect EAP API</div>
+    <div class="header-meta" id="refreshMeta">Last refreshed: —</div>
+  </div>
+</header>
+
+<div class="layout">
+
+<!-- ─── Sidebar ──────────────────────────────────────────── -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="sidebar-brand-mark">
+      <!-- Equinix bars logomark (white on brand red) -->
+      <svg width="17" height="12" viewBox="0 0 17 12" xmlns="http://www.w3.org/2000/svg" aria-label="Equinix">
+        <rect x="0" y="0"   width="17" height="3"   rx="0.5" fill="white"/>
+        <rect x="0" y="4.5" width="12" height="3"   rx="0.5" fill="white"/>
+        <rect x="0" y="9"   width="7.5" height="3"  rx="0.5" fill="white"/>
+      </svg>
+    </div>
+    <div class="sidebar-brand-name">EQUINIX<span>Network Edge · Analytics</span></div>
+  </div>
+
+  <div class="sidebar-section">Growth</div>
+  <button class="tab-btn active" onclick="switchTab(0)"><span class="nav-icon">📈</span>Growth & Revenue</button>
+  <button class="tab-btn" onclick="switchTab(1)"><span class="nav-icon">📊</span>Adoption Metrics</button>
+
+  <div class="sidebar-section">Commercial</div>
+  <button class="tab-btn" onclick="switchTab(2)"><span class="nav-icon">🤝</span>Partners (MRR)</button>
+  <button class="tab-btn" onclick="switchTab(3)"><span class="nav-icon">❤️</span>Customer Health</button>
+  <button class="tab-btn" onclick="switchTab(4)"><span class="nav-icon">⚔️</span>Competitive</button>
+  <button class="tab-btn" onclick="switchTab(5)"><span class="nav-icon">💰</span>Financial Health</button>
+
+  <div class="sidebar-section">Product</div>
+  <button class="tab-btn" onclick="switchTab(6)"><span class="nav-icon">🔧</span>Vendor & Service</button>
+  <button class="tab-btn" onclick="switchTab(7)"><span class="nav-icon">🌐</span>Connectivity</button>
+  <button class="tab-btn" onclick="switchTab(8)"><span class="nav-icon">🏗️</span>Architecture</button>
+  <button class="tab-btn" onclick="switchTab(9)"><span class="nav-icon">📡</span>Performance</button>
+
+  <div class="sidebar-section">Customers</div>
+  <button class="tab-btn" onclick="switchTab(10)"><span class="nav-icon">🔄</span>Lifecycle</button>
+  <button class="tab-btn" onclick="switchTab(11)"><span class="nav-icon">👥</span>Segments & GTM</button>
+  <button class="tab-btn" onclick="switchTab(12)"><span class="nav-icon">📍</span>Ratios & Metro</button>
+</aside>
+
+<!-- ─── Main content ─────────────────────────────────────── -->
+<main class="main-content">
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB 1 · GROWTH & REVENUE
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel active" id="tab-0">
+  <div class="section-title">Network Edge · Customer Growth & Revenue</div>
+  <div class="section-subtitle">Trailing 90 days unless otherwise noted · Source: EAP Analytics Platform</div>
+
+  <div class="kpi-row">
+    <div class="kpi-card blue">
+      <div class="kpi-label">New Logos (T90D)</div>
+      <div class="kpi-value">47</div>
+      <div class="kpi-delta up">▲ 12% vs prior 90D</div>
+    </div>
+    <div class="kpi-card teal">
+      <div class="kpi-label">Total Pipeline Value</div>
+      <div class="kpi-value">$8.4M</div>
+      <div class="kpi-delta up">▲ 7% MoM</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">Win Rate</div>
+      <div class="kpi-value">38%</div>
+      <div class="kpi-delta up">▲ 4pts vs Q3 FY25</div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-label">Avg Deal Cycle</div>
+      <div class="kpi-value">67 days</div>
+      <div class="kpi-delta down">▼ 5 days vs prior period</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="kpi-label">Deals Closed (T90D)</div>
+      <div class="kpi-value">62</div>
+      <div class="kpi-delta neutral">— 39 wins · 23 losses</div>
+    </div>
+  </div>
+
+  <div class="chart-grid">
+    <!-- New Logo Acquisition -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">New Logo Acquisition</div>
+          <div class="chart-subtitle">Monthly new customers · Trailing 90 days highlighted</div>
+        </div>
+        <span class="chart-badge badge-blue">T90D</span>
+      </div>
+      <div class="chart-wrap"><canvas id="newLogosChart" height="220"></canvas></div>
+    </div>
+
+    <!-- Pipeline Value by Stage -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Pipeline Value by Stage</div>
+          <div class="chart-subtitle">Active deals · USD thousands</div>
+        </div>
+        <span class="chart-badge badge-purple">Live</span>
+      </div>
+      <div class="chart-wrap"><canvas id="pipelineStageChart" height="220"></canvas></div>
+    </div>
+
+    <!-- Wins & Losses by Reason -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Pipeline Wins & Losses by Reason</div>
+          <div class="chart-subtitle">Trailing 90 days · Deal outcome attribution</div>
+        </div>
+        <span class="chart-badge badge-orange">T90D</span>
+      </div>
+      <div class="chart-wrap"><canvas id="winLossReasonChart" height="220"></canvas></div>
+    </div>
+
+    <!-- Conversion Rates -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Conversion Rates Over Time</div>
+          <div class="chart-subtitle">Lead → Opportunity → Closed Won (%)</div>
+        </div>
+        <span class="chart-badge badge-green">Trending</span>
+      </div>
+      <div class="chart-wrap"><canvas id="conversionChart" height="220"></canvas></div>
+    </div>
+
+    <!-- Avg Deal Cycle Time -->
+    <div class="chart-card full">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Average Deal Cycle Time</div>
+          <div class="chart-subtitle">Days from first touch to close · by segment</div>
+        </div>
+        <span class="chart-badge badge-blue">Quarterly</span>
+      </div>
+      <div class="chart-wrap"><canvas id="dealCycleChart" height="140"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ── Pipeline & Outcome Engine extension ── -->
+  <div class="divider"></div>
+  <div class="section-title" style="font-size:16px;margin-bottom:4px;">Pipeline & Outcome Engine</div>
+  <div class="section-subtitle">Extended analytics · deal quality, geo breakdown, direct-connect benchmarking</div>
+
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Win Rate by Quarter vs. Direct-Connect Alternatives</div>
+          <div class="chart-subtitle">Equinix NE vs. Megaport, Zayo, PacketFabric head-to-head</div>
+        </div>
+        <span class="chart-badge badge-green">Quarterly</span>
+      </div>
+      <div class="chart-wrap"><canvas id="winRateQtrChart" height="220"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Win/Loss Reason Detail — Latency · Price · Compliance · Support</div>
+          <div class="chart-subtitle">Updated each deal review cycle · stacked by reason</div>
+        </div>
+        <span class="chart-badge badge-orange">Per Deal Review</span>
+      </div>
+      <div class="chart-wrap"><canvas id="reasonDetailChart" height="220"></canvas></div>
+    </div>
+
+    <div class="chart-card full">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Wins & Losses by Metro and Competitor</div>
+          <div class="chart-subtitle">Trailing 12 months · drill-down by geography</div>
+        </div>
+        <span class="chart-badge badge-blue">T12M</span>
+      </div>
+      <table class="data-table" id="metroCompTable">
+        <thead>
+          <tr>
+            <th>Metro</th>
+            <th>Total Deals</th>
+            <th>Wins</th>
+            <th>Losses</th>
+            <th>Win Rate</th>
+            <th>Top Competitor</th>
+            <th>Primary Loss Reason</th>
+            <th>Trend</th>
+          </tr>
+        </thead>
+        <tbody id="metroCompBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB 2 · ADOPTION METRICS
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-1">
+  <div class="section-title">Customer & Adoption Metrics</div>
+  <div class="section-subtitle">Monthly trends · Network Edge deployment activity</div>
+
+  <div class="kpi-row">
+    <div class="kpi-card blue">
+      <div class="kpi-label">New Devices (This Mo.)</div>
+      <div class="kpi-value">1,284</div>
+      <div class="kpi-delta up">▲ 9% MoM</div>
+    </div>
+    <div class="kpi-card teal">
+      <div class="kpi-label">Attachments (This Mo.)</div>
+      <div class="kpi-value">3,471</div>
+      <div class="kpi-delta up">▲ 11% MoM</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">Co-term Endpoints</div>
+      <div class="kpi-value">8,920</div>
+      <div class="kpi-delta up">▲ 6% MoM</div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-label">Active Metros</div>
+      <div class="kpi-value">32</div>
+      <div class="kpi-delta up">▲ 2 new metros</div>
+    </div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">New Device Provisioning</div>
+          <div class="chart-subtitle">Monthly count · NE virtual devices</div>
+        </div>
+        <span class="chart-badge badge-blue">Monthly</span>
+      </div>
+      <div class="chart-wrap"><canvas id="newDevicesChart" height="220"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Attachment Growth</div>
+          <div class="chart-subtitle">Fabric connections attached to NE devices</div>
+        </div>
+        <span class="chart-badge badge-teal">Monthly</span>
+      </div>
+      <div class="chart-wrap"><canvas id="attachmentsChart" height="220"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Co-terminated Endpoints</div>
+          <div class="chart-subtitle">Cumulative active co-term endpoints</div>
+        </div>
+        <span class="chart-badge badge-green">Cumulative</span>
+      </div>
+      <div class="chart-wrap"><canvas id="cotermChart" height="220"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Growth by Metro (Top 12)</div>
+          <div class="chart-subtitle">New device deployments · current quarter</div>
+        </div>
+        <span class="chart-badge badge-orange">QTD</span>
+      </div>
+      <div class="chart-wrap"><canvas id="metroGrowthChart" height="220"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ── Customer Adoption & Growth extension ── -->
+  <div class="divider"></div>
+  <div class="section-title" style="font-size:16px;margin-bottom:4px;">Customer Adoption & Growth</div>
+  <div class="section-subtitle">Net new customers · Virtual Connect attachments · segment cohorts</div>
+
+  <!-- Product Health KPI -->
+  <div style="background:linear-gradient(135deg,#E91C24,#7B2FBE);border-radius:12px;padding:20px 28px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div>
+      <div style="color:rgba(255,255,255,.75);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">Product Health Number</div>
+      <div style="color:#fff;font-size:36px;font-weight:800;line-height:1;">Net Attachment Growth</div>
+      <div style="color:rgba(255,255,255,.8);font-size:13px;margin-top:4px;">New attachments minus dropped attachments ÷ total attachments at period start</div>
+    </div>
+    <div style="text-align:right;">
+      <div style="color:#fff;font-size:52px;font-weight:800;line-height:1;" id="netAttachKpi">+11.4%</div>
+      <div style="color:rgba(255,255,255,.7);font-size:12px;margin-top:4px;">▲ 2.1pts vs prior month</div>
+    </div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Net New Customers & Virtual Connect Attachments</div>
+          <div class="chart-subtitle">New/dropped attachments per month · net bar</div>
+        </div>
+        <span class="chart-badge badge-blue">Monthly</span>
+      </div>
+      <div class="chart-wrap"><canvas id="netNewCustChart" height="220"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">IBX in Use by Metro</div>
+          <div class="chart-subtitle">Active IBX locations · device count per IBX</div>
+        </div>
+        <span class="chart-badge badge-teal">Live</span>
+      </div>
+      <div class="chart-wrap"><canvas id="ibxMetroChart" height="220"></canvas></div>
+    </div>
+
+    <div class="chart-card full">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Growth by Segment</div>
+          <div class="chart-subtitle">1–5 devices · Redundant · DLG · EVP-LAN · Direct-Connect cohorts — 12-month trend</div>
+        </div>
+        <span class="chart-badge badge-green">Monthly</span>
+      </div>
+      <div class="chart-wrap"><canvas id="segGrowthChart" height="160"></canvas></div>
+    </div>
+
+    <div class="chart-card full">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Segment Cohort Table</div>
+          <div class="chart-subtitle">Growth rate · device count · net adds · churn by segment</div>
+        </div>
+      </div>
+      <table class="cohort-table" id="segCohortTable">
+        <thead>
+          <tr>
+            <th>Segment</th>
+            <th>Active Customers</th>
+            <th>Active Devices</th>
+            <th>Net Adds (Mo.)</th>
+            <th>MoM Growth</th>
+            <th>Avg Devices/Cust</th>
+            <th>Churn Rate</th>
+            <th>Health</th>
+          </tr>
+        </thead>
+        <tbody id="segCohortBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB 3 · PARTNERS (MRR)
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-2">
+  <div class="section-title">Top Partners Overview · MRR</div>
+  <div class="section-subtitle">Channel partner performance · Monthly Recurring Revenue</div>
+
+  <div class="kpi-row">
+    <div class="kpi-card blue">
+      <div class="kpi-label">Total Channel MRR</div>
+      <div class="kpi-value">$2.1M</div>
+      <div class="kpi-delta up">▲ 8% MoM</div>
+    </div>
+    <div class="kpi-card teal">
+      <div class="kpi-label">Active Partners</div>
+      <div class="kpi-value">148</div>
+      <div class="kpi-delta up">▲ 6 new this month</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">YoY MRR Growth</div>
+      <div class="kpi-value">+34%</div>
+      <div class="kpi-delta up">▲ vs +28% prior year</div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-label">Avg Partner MRC</div>
+      <div class="kpi-value">$14.2K</div>
+      <div class="kpi-delta up">▲ 3% MoM</div>
+    </div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Top 10 Partners by MRR</div>
+          <div class="chart-subtitle">Current month · USD thousands</div>
+        </div>
+        <span class="chart-badge badge-blue">This Month</span>
+      </div>
+      <div class="chart-wrap"><canvas id="topPartnersChart" height="260"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Month-Over-Month Channel Partner Growth</div>
+          <div class="chart-subtitle">% MoM change in total channel MRR</div>
+        </div>
+        <span class="chart-badge badge-green">MoM %</span>
+      </div>
+      <div class="chart-wrap"><canvas id="momGrowthChart" height="260"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Year-Over-Year Partner Channel Growth</div>
+          <div class="chart-subtitle">Annual MRR comparison · USD millions</div>
+        </div>
+        <span class="chart-badge badge-purple">YoY</span>
+      </div>
+      <div class="chart-wrap"><canvas id="yoyGrowthChart" height="260"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Channel Partner Monthly Recurring Charge</div>
+          <div class="chart-subtitle">Stacked MRC by partner tier · 12 months</div>
+        </div>
+        <span class="chart-badge badge-orange">MRC</span>
+      </div>
+      <div class="chart-wrap"><canvas id="partnerMrcChart" height="260"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB 4 · CUSTOMER HEALTH
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-3">
+  <div class="section-title">Customer Health</div>
+  <div class="section-subtitle">Churn, support quality, and service reliability signals</div>
+
+  <div class="kpi-row">
+    <div class="kpi-card red">
+      <div class="kpi-label">Monthly Churn Rate</div>
+      <div class="kpi-value">1.8%</div>
+      <div class="kpi-delta down">▼ 0.3pts vs last month (good)</div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-label">Declines (MTD)</div>
+      <div class="kpi-value">23</div>
+      <div class="kpi-delta up">▲ 4 vs prior MTD</div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="kpi-label">Avg MTTR (Cases)</div>
+      <div class="kpi-value">4.2 hrs</div>
+      <div class="kpi-delta up">▼ 0.6 hrs vs last month (good)</div>
+    </div>
+    <div class="kpi-card teal">
+      <div class="kpi-label">Median TTR</div>
+      <div class="kpi-value">2.1 hrs</div>
+      <div class="kpi-delta neutral">→ Stable vs prior month</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">Open Cases</div>
+      <div class="kpi-value">87</div>
+      <div class="kpi-delta down">▼ 11 vs last week (good)</div>
+    </div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Monthly Churn Rate</div>
+          <div class="chart-subtitle">% of customer base churned per month</div>
+        </div>
+        <span class="chart-badge badge-red">Monthly %</span>
+      </div>
+      <div class="chart-wrap"><canvas id="churnChart" height="220"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Payment Declines</div>
+          <div class="chart-subtitle">Monthly failed payment count</div>
+        </div>
+        <span class="chart-badge badge-orange">Monthly</span>
+      </div>
+      <div class="chart-wrap"><canvas id="declinesChart" height="220"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Case Load & MTTR Trend</div>
+          <div class="chart-subtitle">Open cases (bars) vs Avg time-to-resolve (line)</div>
+        </div>
+        <span class="chart-badge badge-blue">Monthly</span>
+      </div>
+      <div class="chart-wrap"><canvas id="caseLoadChart" height="220"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Mean vs Median Time to Resolution</div>
+          <div class="chart-subtitle">Hours · MTTR vs Median TTR comparison</div>
+        </div>
+        <span class="chart-badge badge-green">Monthly</span>
+      </div>
+      <div class="chart-wrap"><canvas id="ttrChart" height="220"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB 5 · COMPETITIVE
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-4">
+  <div class="section-title">Competitive Intelligence</div>
+  <div class="section-subtitle">Win/loss analysis against key competitors · Trailing 12 months</div>
+
+  <div class="kpi-row">
+    <div class="kpi-card green">
+      <div class="kpi-label">Overall Win Rate</div>
+      <div class="kpi-value">38%</div>
+      <div class="kpi-delta up">▲ 4pts YoY</div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-label">Loss to Megaport</div>
+      <div class="kpi-value">31%</div>
+      <div class="kpi-delta down">▲ 3pts (top threat)</div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-label">Loss to Zayo</div>
+      <div class="kpi-value">18%</div>
+      <div class="kpi-delta neutral">— Stable YoY</div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="kpi-label">Price-related Losses</div>
+      <div class="kpi-value">44%</div>
+      <div class="kpi-delta down">▼ 2pts MoM (good)</div>
+    </div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Win / Loss by Competitor</div>
+          <div class="chart-subtitle">Trailing 12 months · deal count</div>
+        </div>
+        <span class="chart-badge badge-blue">T12M</span>
+      </div>
+      <div class="chart-wrap"><canvas id="competitorWinLossChart" height="240"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Loss Reasons Breakdown</div>
+          <div class="chart-subtitle">Primary reason deals were lost · all competitors</div>
+        </div>
+        <span class="chart-badge badge-red">T12M</span>
+      </div>
+      <div class="chart-wrap"><canvas id="lossReasonsChart" height="240"></canvas></div>
+    </div>
+
+    <div class="chart-card full">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Win Rate Trend vs Top Competitors</div>
+          <div class="chart-subtitle">Monthly win rate when Equinix NE competes head-to-head</div>
+        </div>
+        <span class="chart-badge badge-green">Monthly</span>
+      </div>
+      <div class="chart-wrap"><canvas id="compWinTrendChart" height="160"></canvas></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Detailed Loss Reasons by Competitor Table -->
+  <div class="chart-card">
+    <div class="chart-header">
+      <div>
+        <div class="chart-title">Loss Reasons by Competitor</div>
+        <div class="chart-subtitle">Trailing 12 months · attributed deal count</div>
+      </div>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Competitor</th>
+          <th>Deals Lost</th>
+          <th>Price / Cost</th>
+          <th>Latency / Perf</th>
+          <th>Compliance</th>
+          <th>Feature Gap</th>
+          <th>Incumbent</th>
+          <th>Win Rate vs</th>
+        </tr>
+      </thead>
+      <tbody id="compTableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB 6 · FINANCIAL HEALTH
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-5">
+  <div class="section-title">Financial Health</div>
+  <div class="section-subtitle">Network Edge revenue metrics · service-type utilization · commercial mix</div>
+
+  <div class="kpi-row">
+    <div class="kpi-card blue"><div class="kpi-label">NE MRR</div><div class="kpi-value">$3.8M</div><div class="kpi-delta up">▲ 8% MoM</div></div>
+    <div class="kpi-card teal"><div class="kpi-label">NE ARR (Run-Rate)</div><div class="kpi-value">$45.6M</div><div class="kpi-delta up">▲ 34% YoY</div></div>
+    <div class="kpi-card green"><div class="kpi-label">Revenue per Cable</div><div class="kpi-value">$1,240</div><div class="kpi-delta up">▲ 3% MoM</div></div>
+    <div class="kpi-card orange"><div class="kpi-label">Avg Contract Value</div><div class="kpi-value">$68K</div><div class="kpi-delta up">▲ 5% QoQ</div></div>
+    <div class="kpi-card purple"><div class="kpi-label">Avg Revenue/Device</div><div class="kpi-value">$2,960</div><div class="kpi-delta neutral">→ Stable MoM</div></div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">MRR / ARR Trend</div><div class="chart-subtitle">Monthly · USD millions</div></div><span class="chart-badge badge-blue">12M</span></div>
+      <div class="chart-wrap"><canvas id="mrrArrChart" height="220"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">Utilization Mix by Service Type</div><div class="chart-subtitle">% of active devices by service category</div></div><span class="chart-badge badge-purple">Live</span></div>
+      <div class="chart-wrap"><canvas id="serviceTypeDonut" height="220"></canvas></div>
+    </div>
+    <div class="chart-card full">
+      <div class="chart-header"><div><div class="chart-title">Revenue by Service Type — 12-Month Trend</div><div class="chart-subtitle">Stacked area · USD thousands</div></div><span class="chart-badge badge-teal">Monthly</span></div>
+      <div class="chart-wrap"><canvas id="serviceRevChart" height="180"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">Commercial / Consumption Mix</div><div class="chart-subtitle">BYOL · Equinix sub · Vendor-managed · PAYG</div></div><span class="chart-badge badge-orange">Live</span></div>
+      <div class="chart-wrap"><canvas id="commercialMixChart" height="220"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">Service Type Detail</div><div class="chart-subtitle">Devices · growth · revenue · throughput per type</div></div><span class="chart-badge badge-blue">QTD</span></div>
+      <div class="chart-wrap"><canvas id="serviceTypeBarChart" height="220"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB 7 · VENDOR & SERVICE MIX
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-6">
+  <div class="section-title">Vendor × Service-Type Mix</div>
+  <div class="section-subtitle">Vendor KPIs · deployment share · service-type coverage matrix</div>
+
+  <div class="kpi-row">
+    <div class="kpi-card blue"><div class="kpi-label">Vendors on Platform</div><div class="kpi-value">24</div><div class="kpi-delta up">▲ 3 new this year</div></div>
+    <div class="kpi-card teal"><div class="kpi-label">Top Vendor Share</div><div class="kpi-value">Cisco 35%</div><div class="kpi-delta down">▼ 2pts (diversifying)</div></div>
+    <div class="kpi-card green"><div class="kpi-label">Fastest Growing</div><div class="kpi-value">Fortinet</div><div class="kpi-delta up">▲ 18% new deploys</div></div>
+    <div class="kpi-card orange"><div class="kpi-label">Service Types Offered</div><div class="kpi-value">8</div><div class="kpi-delta neutral">— Stable</div></div>
+  </div>
+
+  <div class="chart-card" style="margin-bottom:20px;">
+    <div class="chart-header"><div><div class="chart-title">Vendor × Service-Type Coverage Matrix</div><div class="chart-subtitle">Intensity = deployment share · ●●●● = dominant · ●●● = strong · ●● = moderate · ● = minor</div></div><span class="chart-badge badge-blue">Live</span></div>
+    <div class="matrix-wrap">
+      <table class="matrix-table" id="vendorMatrix"></table>
+    </div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">Vendor Share — Active Devices</div><div class="chart-subtitle">% of total installed base</div></div><span class="chart-badge badge-blue">Installed Base</span></div>
+      <div class="chart-wrap"><canvas id="vendorActiveChart" height="260"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">Vendor Share — New Deployments</div><div class="chart-subtitle">% of new device provisioning this quarter</div></div><span class="chart-badge badge-green">New Deploys</span></div>
+      <div class="chart-wrap"><canvas id="vendorNewChart" height="260"></canvas></div>
+    </div>
+    <div class="chart-card full">
+      <div class="chart-header"><div><div class="chart-title">Vendor Share Trend — Active vs New Deployments</div><div class="chart-subtitle">Top 6 vendors · quarterly comparison</div></div><span class="chart-badge badge-purple">Quarterly</span></div>
+      <div class="chart-wrap"><canvas id="vendorTrendChart" height="160"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB 8 · CONNECTIVITY
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-7">
+  <div class="section-title">Connectivity Destination & Mix</div>
+  <div class="section-subtitle">What NE devices are actually connecting to · mix by connection type</div>
+
+  <div class="kpi-row">
+    <div class="kpi-card blue"><div class="kpi-label">Total Active Connections</div><div class="kpi-value">18,420</div><div class="kpi-delta up">▲ 7% MoM</div></div>
+    <div class="kpi-card teal"><div class="kpi-label">Avg Connections/Device</div><div class="kpi-value">3.4</div><div class="kpi-delta up">▲ 0.2 MoM</div></div>
+    <div class="kpi-card green"><div class="kpi-label">Cloud Connectivity %</div><div class="kpi-value">42%</div><div class="kpi-delta up">▲ 1pt MoM</div></div>
+    <div class="kpi-card orange"><div class="kpi-label">Multi-Destination %</div><div class="kpi-value">61%</div><div class="kpi-delta up">▲ 3pts MoM</div></div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">Connectivity Destination Mix</div><div class="chart-subtitle">% of active connections by destination type</div></div><span class="chart-badge badge-blue">Live</span></div>
+      <div class="chart-wrap"><canvas id="destMixChart" height="340"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">NE Connectivity Mix</div><div class="chart-subtitle">Active NE devices by primary use case</div></div><span class="chart-badge badge-teal">Live</span></div>
+      <div class="chart-wrap"><canvas id="neConnMixChart" height="340"></canvas></div>
+    </div>
+    <div class="chart-card full">
+      <div class="chart-header"><div><div class="chart-title">Destination Mix Trend</div><div class="chart-subtitle">12-month shift in connection destination categories</div></div><span class="chart-badge badge-green">Monthly</span></div>
+      <div class="chart-wrap"><canvas id="destTrendChart" height="160"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB 9 · ARCHITECTURE
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-8">
+  <div class="section-title">Architecture / Topology Mix</div>
+  <div class="section-subtitle">Deployment patterns · complexity scoring · topology distribution</div>
+
+  <div class="kpi-row">
+    <div class="kpi-card blue"><div class="kpi-label">Avg Complexity Index</div><div class="kpi-value">2.8</div><div class="kpi-delta up">▲ 0.2 QoQ (maturing)</div></div>
+    <div class="kpi-card teal"><div class="kpi-label">Multi-VNF Deployments</div><div class="kpi-value">34%</div><div class="kpi-delta up">▲ 4pts QoQ</div></div>
+    <div class="kpi-card green"><div class="kpi-label">HA Deployments</div><div class="kpi-value">28%</div><div class="kpi-delta up">▲ 3pts QoQ</div></div>
+    <div class="kpi-card orange"><div class="kpi-label">Multi-Metro</div><div class="kpi-value">19%</div><div class="kpi-delta up">▲ 2pts QoQ</div></div>
+    <div class="kpi-card purple"><div class="kpi-label">NaaS Deployments</div><div class="kpi-value">8%</div><div class="kpi-delta up">▲ 1pt QoQ</div></div>
+  </div>
+
+  <div class="chart-grid" style="margin-bottom:24px;">
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">Topology Type Distribution</div><div class="chart-subtitle">% of active customer deployments</div></div><span class="chart-badge badge-blue">Live</span></div>
+      <div class="chart-wrap"><canvas id="topoDistChart" height="220"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">Architecture Complexity Index Distribution</div><div class="chart-subtitle">Customers scored 1 (simple) → 5 (advanced NaaS)</div></div><span class="chart-badge badge-purple">Live</span></div>
+      <div class="chart-wrap"><canvas id="complexityChart" height="220"></canvas></div>
+    </div>
+    <div class="chart-card full">
+      <div class="chart-header"><div><div class="chart-title">Complexity Index Trend by Topology</div><div class="chart-subtitle">Quarterly migration toward more complex architectures</div></div><span class="chart-badge badge-green">Quarterly</span></div>
+      <div class="chart-wrap"><canvas id="complexTrendChart" height="160"></canvas></div>
+    </div>
+  </div>
+
+  <div class="section-title" style="font-size:16px;margin-bottom:16px;">Topology Pattern Reference</div>
+  <div class="topology-grid" id="topoCards"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB 10 · PERFORMANCE
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-9">
+  <div class="section-title">vDevice Throughput & Capacity Utilization</div>
+  <div class="section-subtitle">Licensed vs. actual throughput · CPU/RAM/interface utilization · VNFs approaching ceiling</div>
+
+  <div class="kpi-row">
+    <div class="kpi-card blue"><div class="kpi-label">Avg Throughput Utilization</div><div class="kpi-value">58%</div><div class="kpi-delta up">▲ 3pts MoM</div></div>
+    <div class="kpi-card red"><div class="kpi-label">VNFs at >80% Ceiling</div><div class="kpi-value">12%</div><div class="kpi-delta down">▲ 2pts (watch)</div></div>
+    <div class="kpi-card orange"><div class="kpi-label">Avg CPU Utilization</div><div class="kpi-value">46%</div><div class="kpi-delta neutral">→ Stable MoM</div></div>
+    <div class="kpi-card teal"><div class="kpi-label">Avg RAM Utilization</div><div class="kpi-value">63%</div><div class="kpi-delta up">▲ 2pts MoM</div></div>
+    <div class="kpi-card purple"><div class="kpi-label">95th Pct Throughput</div><div class="kpi-value">78%</div><div class="kpi-delta down">▲ 4pts (risk)</div></div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-card full">
+      <div class="chart-header"><div><div class="chart-title">Throughput: Licensed vs Actual vs Peak vs Avg vs P95</div><div class="chart-subtitle">Platform-wide average · Gbps normalized to licensed capacity %</div></div><span class="chart-badge badge-blue">Monthly</span></div>
+      <div class="chart-wrap"><canvas id="throughputChart" height="180"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">CPU & RAM Utilization Trend</div><div class="chart-subtitle">Platform average % · 12 months</div></div><span class="chart-badge badge-orange">Monthly</span></div>
+      <div class="chart-wrap"><canvas id="cpuRamChart" height="220"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">Interface Utilization by Device Type</div><div class="chart-subtitle">% of interface capacity used · current</div></div><span class="chart-badge badge-teal">Live</span></div>
+      <div class="chart-wrap"><canvas id="intfUtilChart" height="220"></canvas></div>
+    </div>
+    <div class="chart-card full">
+      <div class="chart-header"><div><div class="chart-title">% VNFs Approaching Throughput Ceiling</div><div class="chart-subtitle">Bands: &lt;50% · 50–70% · 70–80% · 80–90% · &gt;90% of licensed throughput</div></div><span class="chart-badge badge-red">Live</span></div>
+      <div class="chart-wrap"><canvas id="vnfCeilingChart" height="130"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">Packets/sec & Packet Drops</div><div class="chart-subtitle">Platform-wide · monthly average</div></div><span class="chart-badge badge-purple">Monthly</span></div>
+      <div class="chart-wrap"><canvas id="pktChart" height="220"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">Interface Errors</div><div class="chart-subtitle">Total interface errors per month</div></div><span class="chart-badge badge-red">Monthly</span></div>
+      <div class="chart-wrap"><canvas id="errorsChart" height="220"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB 11 · LIFECYCLE
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-10">
+  <div class="section-title">Device Lifecycle & Deployment Duration</div>
+  <div class="section-subtitle">New · expansions · upgrades · downgrades · terminations · migrations · duration buckets</div>
+
+  <div class="kpi-row">
+    <div class="kpi-card blue"><div class="kpi-label">New Deployments (Mo.)</div><div class="kpi-value">284</div><div class="kpi-delta up">▲ 9% MoM</div></div>
+    <div class="kpi-card green"><div class="kpi-label">Expansions (Mo.)</div><div class="kpi-value">142</div><div class="kpi-delta up">▲ 6% MoM</div></div>
+    <div class="kpi-card orange"><div class="kpi-label">Upgrades (Mo.)</div><div class="kpi-value">87</div><div class="kpi-delta up">▲ 4% MoM</div></div>
+    <div class="kpi-card red"><div class="kpi-label">Terminations (Mo.)</div><div class="kpi-value">43</div><div class="kpi-delta down">▼ 2% MoM (good)</div></div>
+    <div class="kpi-card teal"><div class="kpi-label">Migrations (Mo.)</div><div class="kpi-value">31</div><div class="kpi-delta neutral">→ Stable MoM</div></div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-card full">
+      <div class="chart-header"><div><div class="chart-title">Device Lifecycle Events — Monthly</div><div class="chart-subtitle">New · Expansions · Upgrades · Downgrades · Terminations · Migrations</div></div><span class="chart-badge badge-blue">Monthly</span></div>
+      <div class="chart-wrap"><canvas id="lifecycleChart" height="200"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">Deployment Duration Distribution</div><div class="chart-subtitle">Devices bucketed by time in service</div></div><span class="chart-badge badge-purple">Current</span></div>
+      <div class="chart-wrap"><canvas id="deployDurationChart" height="260"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">Commercial / Consumption Mix</div><div class="chart-subtitle">BYOL · Equinix Subscription · Vendor-Managed · PAYG</div></div><span class="chart-badge badge-orange">Current</span></div>
+      <div class="chart-wrap"><canvas id="consumptionMixChart" height="260"></canvas></div>
+    </div>
+    <div class="chart-card full">
+      <div class="chart-header"><div><div class="chart-title">Lifecycle Event Trend</div><div class="chart-subtitle">Net device growth = new + expansions − terminations</div></div><span class="chart-badge badge-green">Monthly</span></div>
+      <div class="chart-wrap"><canvas id="lifecycleTrendChart" height="160"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB 12 · SEGMENTS & GTM
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-11">
+  <div class="section-title">Customer Segments, Personas & GTM Motion</div>
+  <div class="section-subtitle">Who buys NE · who uses it · how it's sold</div>
+
+  <div class="kpi-row">
+    <div class="kpi-card blue"><div class="kpi-label">Top Segment</div><div class="kpi-value">Enterprise</div><div class="kpi-delta neutral">— 38% of revenue</div></div>
+    <div class="kpi-card teal"><div class="kpi-label">Fastest Growing Segment</div><div class="kpi-value">FinServ</div><div class="kpi-delta up">▲ 22% YoY</div></div>
+    <div class="kpi-card green"><div class="kpi-label">Top GTM Motion</div><div class="kpi-value">Channel</div><div class="kpi-delta up">▲ 8% MoM</div></div>
+    <div class="kpi-card orange"><div class="kpi-label">Top Buyer Persona</div><div class="kpi-value">Net Architect</div><div class="kpi-delta neutral">— 31% of deals</div></div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">Customer Segment Distribution</div><div class="chart-subtitle">% of active customers by vertical</div></div><span class="chart-badge badge-blue">Live</span></div>
+      <div class="chart-wrap"><canvas id="custSegmentChart" height="280"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">GTM Motion Mix</div><div class="chart-subtitle">% of new ARR by sales motion</div></div><span class="chart-badge badge-teal">Live</span></div>
+      <div class="chart-wrap"><canvas id="gtmMotionChart" height="280"></canvas></div>
+    </div>
+    <div class="chart-card full">
+      <div class="chart-header"><div><div class="chart-title">Buyer / User Persona Distribution</div><div class="chart-subtitle">Primary contact role in NE deals · % of deals</div></div><span class="chart-badge badge-orange">T12M</span></div>
+      <div class="chart-wrap"><canvas id="buyerPersonaChart" height="180"></canvas></div>
+    </div>
+    <div class="chart-card full">
+      <div class="chart-header"><div><div class="chart-title">Segment Revenue Contribution Trend</div><div class="chart-subtitle">MRR by segment · 12 months · stacked</div></div><span class="chart-badge badge-purple">Monthly</span></div>
+      <div class="chart-wrap"><canvas id="segRevChart" height="180"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TAB 13 · RATIOS & METRO
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-12">
+  <div class="section-title">Key Ratios & Metro Utilization</div>
+  <div class="section-subtitle">Platform health indices · geographic utilization · density metrics</div>
+
+  <div class="ratio-grid">
+    <div class="ratio-card">
+      <div class="ratio-label">NE Expansion Ratio</div>
+      <div class="ratio-value">0.31</div>
+      <div class="ratio-desc">New NE devices / existing NE customers<br><span style="color:var(--eq-green);font-weight:600;">▲ 0.03 MoM</span></div>
+    </div>
+    <div class="ratio-card teal">
+      <div class="ratio-label">Multi-VNF Ratio</div>
+      <div class="ratio-value">34%</div>
+      <div class="ratio-desc">Customers with ≥2 VNF types<br><span style="color:var(--eq-green);font-weight:600;">▲ 4pts QoQ</span></div>
+    </div>
+    <div class="ratio-card green">
+      <div class="ratio-label">Multi-Metro Ratio</div>
+      <div class="ratio-value">19%</div>
+      <div class="ratio-desc">Customers with NE in ≥2 metros<br><span style="color:var(--eq-green);font-weight:600;">▲ 2pts QoQ</span></div>
+    </div>
+    <div class="ratio-card orange">
+      <div class="ratio-label">Connectivity Density</div>
+      <div class="ratio-value">3.4x</div>
+      <div class="ratio-desc">Fabric connections / active NE device<br><span style="color:var(--eq-green);font-weight:600;">▲ 0.2 MoM</span></div>
+    </div>
+    <div class="ratio-card purple">
+      <div class="ratio-label">Production Adoption</div>
+      <div class="ratio-value">71%</div>
+      <div class="ratio-desc">Devices active >12 months / total<br><span style="color:var(--eq-green);font-weight:600;">▲ 3pts QoQ</span></div>
+    </div>
+    <div class="ratio-card">
+      <div class="ratio-label">Metro Utilization Index</div>
+      <div class="ratio-value">0.68</div>
+      <div class="ratio-desc">Weighted avg metro capacity utilization<br><span style="color:var(--eq-orange);font-weight:600;">→ Moderate</span></div>
+    </div>
+  </div>
+
+  <div class="chart-grid">
+    <div class="chart-card full">
+      <div class="chart-header"><div><div class="chart-title">Metro Utilization Index — Top 15 Metros</div><div class="chart-subtitle">Device count · service type · throughput · revenue · utilization index</div></div><span class="chart-badge badge-blue">Live</span></div>
+      <table class="metro-table">
+        <thead>
+          <tr>
+            <th>Metro</th><th>Devices</th><th>Top Service</th>
+            <th>Throughput (Avg)</th><th>MRR</th><th>Utilization Index</th><th>Trend</th>
+          </tr>
+        </thead>
+        <tbody id="metroUtilBody"></tbody>
+      </table>
+    </div>
+    <div class="chart-card full">
+      <div class="chart-header"><div><div class="chart-title">Key Ratio Trends</div><div class="chart-subtitle">Expansion · Multi-VNF · Multi-Metro · Connectivity Density — quarterly</div></div><span class="chart-badge badge-teal">Quarterly</span></div>
+      <div class="chart-wrap"><canvas id="ratioTrendChart" height="200"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">Metro Device Count by Service Type</div><div class="chart-subtitle">Top 10 metros · stacked by service</div></div><span class="chart-badge badge-orange">Current</span></div>
+      <div class="chart-wrap"><canvas id="metroServiceChart" height="280"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header"><div><div class="chart-title">Metro Revenue Distribution</div><div class="chart-subtitle">MRR contribution by metro · top 12</div></div><span class="chart-badge badge-purple">Monthly</span></div>
+      <div class="chart-wrap"><canvas id="metroRevChart" height="280"></canvas></div>
+    </div>
+  </div>
+</div><!-- /tab-12 -->
+
+</main><!-- /main-content -->
+</div><!-- /layout -->
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// EAP API CONFIGURATION
+// ─────────────────────────────────────────────────────────────────────────
+// Edit these defaults OR click the status badge in the header to configure
+// via UI. Settings are persisted to localStorage.
+// ═══════════════════════════════════════════════════════════════════════════
+const EAP = {
+  // Base URL for the EAP REST API
+  baseUrl: localStorage.getItem('eap_baseUrl') || 'https://eap.equinix.com/api/v1',
+
+  // Bearer token — set via the UI (click the badge) or paste directly here
+  token: localStorage.getItem('eap_token') || '',
+
+  // Auto-refresh in minutes (0 = off)
+  autoRefreshMinutes: Number(localStorage.getItem('eap_refresh') ?? 15),
+
+  // ─── Endpoint paths (relative to baseUrl) ──────────────────────────────
+  // Adjust these once you've inspected the actual EAP API responses.
+  endpoints: {
+    logos:       'network-edge/logos/acquisition',      // new logo data
+    pipeline:    'network-edge/pipeline',               // stages, win/loss
+    conversion:  'network-edge/conversion',             // conversion rates
+    dealCycle:   'network-edge/deal-cycle',             // cycle time by segment
+    devices:     'network-edge/devices',                // new devices + metro
+    attachments: 'network-edge/attachments',            // attachment counts
+    coterm:      'network-edge/endpoints/coterm',       // co-term endpoints
+    partners:    'network-edge/partners/mrr',           // partner MRR / MRC
+    health:      'network-edge/health',                 // churn, declines, TTR
+    competitive: 'network-edge/competitive',            // win/loss vs competitors
+  },
+
+  // ─── Field mappings ──────────────────────────────────────────────────────
+  // Keys inside each API response that map to chart data arrays.
+  // Example: if the logos endpoint returns { result: { byMonth: [...] } }
+  // then set logos_monthly to 'result.byMonth'.
+  // Leave as '' to use the root array directly.
+  fieldMap: {
+    logos_monthly:          'data.monthly',
+    pipeline_stages:        'data.stages',
+    pipeline_winLoss:       'data.winLossByReason',
+    conversion_monthly:     'data.monthly',
+    dealCycle_bySegment:    'data.bySegment',
+    devices_monthly:        'data.monthly',
+    devices_byMetro:        'data.byMetro',
+    attachments_monthly:    'data.monthly',
+    coterm_monthly:         'data.monthly',
+    partners_topMrr:        'data.topPartners',
+    partners_momGrowth:     'data.momGrowthPercent',
+    partners_yoyGrowth:     'data.yoyComparison',
+    partners_mrcByTier:     'data.mrcByTier',
+    health_churn:           'data.churnPercent',
+    health_declines:        'data.declines',
+    health_caseLoad:        'data.caseLoad',
+    health_ttr:             'data.ttr',
+    competitive_winLoss:    'data.byCompetitor',
+    competitive_lossReasons:'data.lossReasons',
+    competitive_trend:      'data.winRateTrend',
+  },
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DARK / LIGHT THEME
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DARK_GRID   = '#1E2D4A';   // Horizon dark border
+const LIGHT_GRID  = '#edf0f7';   // Equinix light grid
+const DARK_TICK   = '#94a3b8';
+const LIGHT_TICK  = '#64748b';
+const DARK_LEGEND = '#94a3b8';
+const LIGHT_LEGEND = '#64748b';
+
+function applyChartTheme(dark) {
+  const gridColor   = dark ? DARK_GRID   : LIGHT_GRID;
+  const tickColor   = dark ? DARK_TICK   : LIGHT_TICK;
+
+  Chart.defaults.color = tickColor;
+
+  // Iterate every stored chart instance and update grid/tick colors
+  Object.values(CH).forEach(chart => {
+    if (!chart || !chart.options) return;
+    const scales = chart.options.scales || {};
+    Object.values(scales).forEach(scale => {
+      if (scale.grid) scale.grid.color = gridColor;
+      if (scale.ticks) scale.ticks.color = tickColor;
+      if (scale.title) scale.title.color = tickColor;
+    });
+    if (chart.options.plugins?.legend?.labels) {
+      chart.options.plugins.legend.labels.color = tickColor;
+    }
+    chart.update('none'); // 'none' skips animation for instant recolor
+  });
+}
+
+function setTheme(mode) {
+  const dark = (mode === 'dark');
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  document.getElementById('themeIcon').textContent  = dark ? '☀️' : '🌙';
+  document.getElementById('themeLabel').textContent = dark ? 'Light' : 'Dark';
+  localStorage.setItem('eq_theme', mode);
+  applyChartTheme(dark);
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme');
+  setTheme(current === 'dark' ? 'light' : 'dark');
+}
+
+// ─── Deep-get helper: resolve 'a.b.c' path in an object ──────────────────
+function dig(obj, path) {
+  if (!path) return obj;
+  return path.split('.').reduce((o, k) => (o && o[k] !== undefined ? o[k] : null), obj);
+}
+
+// ─── Modal helpers ─────────────────────────────────────────────────────────
+function openModal() {
+  document.getElementById('tokenInput').value = EAP.token ? '••••••••' : '';
+  document.getElementById('baseUrlInput').value = EAP.baseUrl;
+  document.getElementById('refreshSelect').value = String(EAP.autoRefreshMinutes);
+  document.getElementById('configModal').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('configModal').classList.remove('open');
+  document.getElementById('tokenErr').style.display = 'none';
+}
+function saveAndConnect() {
+  const rawToken = document.getElementById('tokenInput').value.trim();
+  // If user left the masked placeholder, keep existing token
+  const token = (rawToken === '••••••••') ? EAP.token : rawToken;
+  if (!token) {
+    document.getElementById('tokenErr').style.display = 'block';
+    return;
+  }
+  EAP.token              = token;
+  EAP.baseUrl            = document.getElementById('baseUrlInput').value.trim();
+  EAP.autoRefreshMinutes = Number(document.getElementById('refreshSelect').value);
+  localStorage.setItem('eap_token',   EAP.token);
+  localStorage.setItem('eap_baseUrl', EAP.baseUrl);
+  localStorage.setItem('eap_refresh', String(EAP.autoRefreshMinutes));
+  closeModal();
+  refreshAll();
+  scheduleAutoRefresh();
+}
+
+// ─── Status badge ──────────────────────────────────────────────────────────
+function setStatus(state) {
+  const badge = document.getElementById('statusBadge');
+  if (state === 'live') {
+    badge.className = 'data-badge live';
+    badge.textContent = '✓ Live — EAP Connected';
+  } else if (state === 'loading') {
+    badge.className = 'data-badge loading';
+    badge.textContent = '↻ Fetching from EAP…';
+  } else if (state === 'partial') {
+    badge.className = 'data-badge loading';
+    badge.textContent = '⚠ Partial — Some endpoints failed';
+  } else {
+    badge.className = 'data-badge';
+    badge.textContent = '⚠ Sample Data — Click to Connect EAP';
+  }
+}
+function setRefreshMeta() {
+  document.getElementById('refreshMeta').textContent =
+    'Last refreshed: ' + new Date().toLocaleString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', timeZoneName: 'short'
+    });
+}
+
+// ─── Core fetch wrapper ────────────────────────────────────────────────────
+// Returns parsed JSON on success, null on any failure (logs to console).
+async function eapFetch(endpointKey) {
+  if (!EAP.token) return null;
+  const url = `${EAP.baseUrl}/${EAP.endpoints[endpointKey]}`;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${EAP.token}`,
+        'Accept': 'application/json',
+      }
+    });
+    if (!res.ok) {
+      console.warn(`[EAP] ${endpointKey} → HTTP ${res.status} ${res.statusText}`);
+      return null;
+    }
+    return await res.json();
+  } catch (err) {
+    console.warn(`[EAP] ${endpointKey} fetch failed:`, err.message);
+    return null;
+  }
+}
+
+// ─── Chart store (populated during init, mutated on refresh) ──────────────
+const CH = {};
+
+// ─── Auto-refresh ──────────────────────────────────────────────────────────
+let _refreshTimer = null;
+function scheduleAutoRefresh() {
+  clearInterval(_refreshTimer);
+  if (EAP.autoRefreshMinutes > 0) {
+    _refreshTimer = setInterval(refreshAll, EAP.autoRefreshMinutes * 60 * 1000);
+  }
+}
+
+// ─── Master refresh: fetch all sections, update charts ───────────────────
+async function refreshAll() {
+  if (!EAP.token) { setStatus('sample'); return; }
+  setStatus('loading');
+
+  // Fire all fetches in parallel
+  const [logos, pipeline, conversion, dealCycle,
+         devices, attachments, coterm,
+         partners, health, competitive] = await Promise.all([
+    eapFetch('logos'),
+    eapFetch('pipeline'),
+    eapFetch('conversion'),
+    eapFetch('dealCycle'),
+    eapFetch('devices'),
+    eapFetch('attachments'),
+    eapFetch('coterm'),
+    eapFetch('partners'),
+    eapFetch('health'),
+    eapFetch('competitive'),
+  ]);
+
+  let anyLive = false;
+
+  // ── LOGOS ───────────────────────────────────────────────────────────────
+  if (logos) {
+    anyLive = true;
+    const monthly = dig(logos, EAP.fieldMap.logos_monthly);
+    // Expected: array of { label, count } or just array of numbers
+    if (Array.isArray(monthly)) {
+      const labels = monthly.map(d => d.label ?? d.month ?? '');
+      const counts = monthly.map(d => d.count ?? d.value ?? d);
+      CH.newLogos.data.labels = labels;
+      CH.newLogos.data.datasets[0].data = counts;
+      CH.newLogos.data.datasets[0].backgroundColor =
+        counts.map((_, i) => i >= counts.length - 3
+          ? alpha(C.blue, 1) : alpha(C.blue, 0.35));
+      CH.newLogos.update();
+    }
+  }
+
+  // ── PIPELINE ────────────────────────────────────────────────────────────
+  if (pipeline) {
+    anyLive = true;
+    // Stages
+    const stages = dig(pipeline, EAP.fieldMap.pipeline_stages);
+    if (Array.isArray(stages)) {
+      CH.pipelineStage.data.labels = stages.map(s => s.name ?? s.stage ?? s);
+      CH.pipelineStage.data.datasets[0].data = stages.map(s => s.value ?? s.amount ?? s);
+      CH.pipelineStage.update();
+    }
+    // Win/Loss by reason
+    const wl = dig(pipeline, EAP.fieldMap.pipeline_winLoss);
+    if (Array.isArray(wl)) {
+      CH.winLossReason.data.labels = wl.map(r => r.reason ?? r.label ?? r);
+      CH.winLossReason.data.datasets[0].data = wl.map(r => r.wins ?? r.win ?? 0);
+      CH.winLossReason.data.datasets[1].data = wl.map(r => r.losses ?? r.loss ?? 0);
+      CH.winLossReason.update();
+    }
+  }
+
+  // ── CONVERSION ──────────────────────────────────────────────────────────
+  if (conversion) {
+    anyLive = true;
+    const monthly = dig(conversion, EAP.fieldMap.conversion_monthly);
+    // Expected: array of { label, leadToOpp, oppToWon, overallWin }
+    if (Array.isArray(monthly)) {
+      CH.conversion.data.labels = monthly.map(d => d.label ?? d.month ?? '');
+      CH.conversion.data.datasets[0].data = monthly.map(d => d.leadToOpp ?? d.lead_to_opp ?? 0);
+      CH.conversion.data.datasets[1].data = monthly.map(d => d.oppToWon ?? d.opp_to_won ?? 0);
+      CH.conversion.data.datasets[2].data = monthly.map(d => d.overallWin ?? d.overall_win ?? 0);
+      CH.conversion.update();
+    }
+  }
+
+  // ── DEAL CYCLE ──────────────────────────────────────────────────────────
+  if (dealCycle) {
+    anyLive = true;
+    const bySegment = dig(dealCycle, EAP.fieldMap.dealCycle_bySegment);
+    // Expected: { labels: [...], enterprise: [...], midMarket: [...], smb: [...] }
+    if (bySegment) {
+      if (bySegment.labels) CH.dealCycle.data.labels = bySegment.labels;
+      if (bySegment.enterprise) CH.dealCycle.data.datasets[0].data = bySegment.enterprise;
+      if (bySegment.midMarket || bySegment.mid_market)
+        CH.dealCycle.data.datasets[1].data = bySegment.midMarket ?? bySegment.mid_market;
+      if (bySegment.smb) CH.dealCycle.data.datasets[2].data = bySegment.smb;
+      CH.dealCycle.update();
+    }
+  }
+
+  // ── DEVICES ─────────────────────────────────────────────────────────────
+  if (devices) {
+    anyLive = true;
+    const monthly = dig(devices, EAP.fieldMap.devices_monthly);
+    if (Array.isArray(monthly)) {
+      CH.newDevices.data.labels = monthly.map(d => d.label ?? d.month ?? '');
+      CH.newDevices.data.datasets[0].data = monthly.map(d => d.count ?? d.value ?? d);
+      CH.newDevices.update();
+    }
+    const byMetro = dig(devices, EAP.fieldMap.devices_byMetro);
+    if (Array.isArray(byMetro)) {
+      CH.metroGrowth.data.labels = byMetro.map(m => m.metro ?? m.label ?? m);
+      CH.metroGrowth.data.datasets[0].data = byMetro.map(m => m.count ?? m.value ?? m);
+      CH.metroGrowth.update();
+    }
+  }
+
+  // ── ATTACHMENTS ─────────────────────────────────────────────────────────
+  if (attachments) {
+    anyLive = true;
+    const monthly = dig(attachments, EAP.fieldMap.attachments_monthly);
+    if (Array.isArray(monthly)) {
+      CH.attachments.data.labels = monthly.map(d => d.label ?? d.month ?? '');
+      CH.attachments.data.datasets[0].data = monthly.map(d => d.count ?? d.value ?? d);
+      CH.attachments.update();
+    }
+  }
+
+  // ── CO-TERM ─────────────────────────────────────────────────────────────
+  if (coterm) {
+    anyLive = true;
+    const monthly = dig(coterm, EAP.fieldMap.coterm_monthly);
+    if (Array.isArray(monthly)) {
+      CH.coterm.data.labels = monthly.map(d => d.label ?? d.month ?? '');
+      CH.coterm.data.datasets[0].data = monthly.map(d => d.count ?? d.value ?? d);
+      CH.coterm.update();
+    }
+  }
+
+  // ── PARTNERS ────────────────────────────────────────────────────────────
+  if (partners) {
+    anyLive = true;
+    const top = dig(partners, EAP.fieldMap.partners_topMrr);
+    if (Array.isArray(top)) {
+      CH.topPartners.data.labels = top.map(p => p.name ?? p.partner ?? p);
+      CH.topPartners.data.datasets[0].data = top.map(p => p.mrr ?? p.value ?? p);
+      CH.topPartners.update();
+    }
+    const mom = dig(partners, EAP.fieldMap.partners_momGrowth);
+    if (Array.isArray(mom)) {
+      CH.momGrowth.data.labels = mom.map(d => d.label ?? d.month ?? '');
+      CH.momGrowth.data.datasets[0].data = mom.map(d => d.growth ?? d.value ?? d);
+      CH.momGrowth.update();
+    }
+    const yoy = dig(partners, EAP.fieldMap.partners_yoyGrowth);
+    if (yoy && Array.isArray(yoy.labels)) {
+      CH.yoyGrowth.data.labels = yoy.labels;
+      if (yoy.mrr)    CH.yoyGrowth.data.datasets[0].data = yoy.mrr;
+      if (yoy.growth) CH.yoyGrowth.data.datasets[1].data = yoy.growth;
+      CH.yoyGrowth.update();
+    }
+    const mrc = dig(partners, EAP.fieldMap.partners_mrcByTier);
+    if (mrc) {
+      if (mrc.labels)    CH.partnerMrc.data.labels = mrc.labels;
+      if (mrc.platinum)  CH.partnerMrc.data.datasets[0].data = mrc.platinum;
+      if (mrc.gold)      CH.partnerMrc.data.datasets[1].data = mrc.gold;
+      if (mrc.silver)    CH.partnerMrc.data.datasets[2].data = mrc.silver;
+      if (mrc.registered)CH.partnerMrc.data.datasets[3].data = mrc.registered;
+      CH.partnerMrc.update();
+    }
+  }
+
+  // ── HEALTH ──────────────────────────────────────────────────────────────
+  if (health) {
+    anyLive = true;
+    const churn = dig(health, EAP.fieldMap.health_churn);
+    if (Array.isArray(churn)) {
+      CH.churn.data.labels = churn.map(d => d.label ?? d.month ?? '');
+      CH.churn.data.datasets[0].data = churn.map(d => d.rate ?? d.value ?? d);
+      CH.churn.update();
+    }
+    const declines = dig(health, EAP.fieldMap.health_declines);
+    if (Array.isArray(declines)) {
+      const vals = declines.map(d => d.count ?? d.value ?? d);
+      CH.declines.data.labels = declines.map(d => d.label ?? d.month ?? '');
+      CH.declines.data.datasets[0].data = vals;
+      CH.declines.data.datasets[0].backgroundColor =
+        vals.map(v => v >= 30 ? alpha(C.red,0.8) : alpha(C.orange,0.7));
+      CH.declines.update();
+    }
+    const cl = dig(health, EAP.fieldMap.health_caseLoad);
+    if (cl) {
+      if (Array.isArray(cl.labels)) CH.caseLoad.data.labels = cl.labels;
+      if (Array.isArray(cl.openCases)) CH.caseLoad.data.datasets[0].data = cl.openCases;
+      if (Array.isArray(cl.mttr))      CH.caseLoad.data.datasets[1].data = cl.mttr;
+      CH.caseLoad.update();
+    }
+    const ttr = dig(health, EAP.fieldMap.health_ttr);
+    if (ttr) {
+      if (Array.isArray(ttr.labels)) CH.ttr.data.labels = ttr.labels;
+      if (Array.isArray(ttr.mean))   CH.ttr.data.datasets[0].data = ttr.mean;
+      if (Array.isArray(ttr.median)) CH.ttr.data.datasets[1].data = ttr.median;
+      CH.ttr.update();
+    }
+  }
+
+  // ── COMPETITIVE ─────────────────────────────────────────────────────────
+  if (competitive) {
+    anyLive = true;
+    const wl = dig(competitive, EAP.fieldMap.competitive_winLoss);
+    if (Array.isArray(wl)) {
+      CH.competitorWinLoss.data.labels = wl.map(c => c.competitor ?? c.name ?? c);
+      CH.competitorWinLoss.data.datasets[0].data = wl.map(c => c.wins ?? 0);
+      CH.competitorWinLoss.data.datasets[1].data = wl.map(c => c.losses ?? 0);
+      CH.competitorWinLoss.update();
+    }
+    const lr = dig(competitive, EAP.fieldMap.competitive_lossReasons);
+    if (lr) {
+      CH.lossReasons.data.labels = lr.map(r => r.reason ?? r.label ?? r);
+      CH.lossReasons.data.datasets[0].data = lr.map(r => r.percent ?? r.value ?? r);
+      CH.lossReasons.update();
+    }
+    const trend = dig(competitive, EAP.fieldMap.competitive_trend);
+    if (trend) {
+      if (trend.labels) CH.compWinTrend.data.labels = trend.labels;
+      ['megaport','zayo','packetFabric','consoleConnect'].forEach((key, i) => {
+        if (trend[key]) CH.compWinTrend.data.datasets[i].data = trend[key];
+      });
+      CH.compWinTrend.update();
+    }
+  }
+
+  setStatus(anyLive ? 'live' : 'sample');
+  setRefreshMeta();
+}
+
+// ─── Equinix Horizon colour palette ────────────────────────────────────────
+// equinix.com/events/horizon confirmed palette
+const C = {
+  red:    '#E91C24',   // Equinix brand red — primary
+  blue:   '#0057A0',   // Equinix electric blue
+  teal:   '#00C4D4',   // Equinix aqua
+  violet: '#7B2FBE',   // Horizon event violet
+  orange: '#F97316',   // warm accent
+  green:  '#22c55e',   // positive / growth
+  yellow: '#eab308',
+  pink:   '#ec4899',
+  indigo: '#3B5FC0',   // Equinix mid-blue variant
+  cyan:   '#00E5F0',   // bright aqua highlight
+  purple: '#9B59D0',   // purple variant
+};
+const alpha = (hex, a) => hex + Math.round(a*255).toString(16).padStart(2,'0');
+
+Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+Chart.defaults.font.size = 12;
+Chart.defaults.color = '#64748b';
+Chart.defaults.plugins.legend.labels.boxWidth = 12;
+Chart.defaults.plugins.legend.labels.padding = 16;
+
+const months12 = ['Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug'];
+const months6  = ['Mar','Apr','May','Jun','Jul','Aug'];
+const quarters = ['Q1 FY24','Q2 FY24','Q3 FY24','Q4 FY24','Q1 FY25','Q2 FY25','Q3 FY25','Q4 FY25','Q1 FY26','Q2 FY26','Q3 FY26'];
+
+// ─── Tab switching ─────────────────────────────────────────────────────────
+function switchTab(i) {
+  document.querySelectorAll('.tab-panel').forEach((p,j) => {
+    p.classList.toggle('active', j===i);
+  });
+  document.querySelectorAll('.tab-btn').forEach((b,j) => {
+    b.classList.toggle('active', j===i);
+  });
+}
+
+// Close modal if backdrop clicked
+document.getElementById('configModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+// ─── Helper: gradient fill ─────────────────────────────────────────────────
+function grad(ctx, color, a1=0.3, a2=0.02) {
+  const g = ctx.createLinearGradient(0, 0, 0, 300);
+  g.addColorStop(0, alpha(color, a1));
+  g.addColorStop(1, alpha(color, a2));
+  return g;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TAB 1 · GROWTH & REVENUE
+// ═══════════════════════════════════════════════════════════════
+
+// New Logo Acquisition (T90D = last 3 months highlighted)
+CH.newLogos = new Chart(document.getElementById('newLogosChart'), {
+  type: 'bar',
+  data: {
+    labels: months12,
+    datasets: [{
+      label: 'New Logos',
+      data: [11,9,13,8,12,10,14,11,16,15,17,15],
+      backgroundColor: months12.map((_,i) =>
+        i >= 9 ? alpha(C.blue, 1) : alpha(C.blue, 0.35)),
+      borderRadius: 5,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.raw} new logos` } }
+    },
+    scales: {
+      y: { beginAtZero: true, grid: { color: LIGHT_GRID }, title: { display: true, text: 'Count' } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// Pipeline Value by Stage
+CH.pipelineStage = new Chart(document.getElementById('pipelineStageChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Discovery','Qualification','Solution Design','Proposal','Negotiation','Commit'],
+    datasets: [{
+      label: 'Pipeline ($K)',
+      data: [3200, 1850, 1420, 890, 640, 380],
+      backgroundColor: [C.blue, C.teal, C.purple, C.orange, C.yellow, C.green].map(c => alpha(c, 0.85)),
+      borderRadius: 5,
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => ` $${ctx.raw.toLocaleString()}K` } }
+    },
+    scales: {
+      x: { beginAtZero: true, grid: { color: LIGHT_GRID }, title: { display: true, text: 'USD Thousands' } },
+      y: { grid: { display: false } }
+    }
+  }
+});
+
+// Wins & Losses by Reason
+CH.winLossReason = new Chart(document.getElementById('winLossReasonChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Best Price','Technical Fit','Relationship','Speed','Compliance','Feature','Latency'],
+    datasets: [
+      {
+        label: 'Wins',
+        data: [14, 11, 8, 6, 5, 4, 3],
+        backgroundColor: alpha(C.green, 0.85),
+        borderRadius: 4,
+      },
+      {
+        label: 'Losses',
+        data: [5, 3, 4, 7, 2, 5, 8],
+        backgroundColor: alpha(C.red, 0.75),
+        borderRadius: 4,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top' } },
+    scales: {
+      y: { beginAtZero: true, stacked: false, grid: { color: LIGHT_GRID } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// Conversion Rates
+CH.conversion = new Chart(document.getElementById('conversionChart'), {
+  type: 'line',
+  data: {
+    labels: months12,
+    datasets: [
+      {
+        label: 'Lead → Opp',
+        data: [28,30,29,31,27,32,30,33,35,34,36,38],
+        borderColor: C.blue, backgroundColor: 'transparent',
+        borderWidth: 2.5, pointRadius: 3, tension: 0.35,
+      },
+      {
+        label: 'Opp → Closed Won',
+        data: [31,33,30,32,28,34,33,35,37,36,38,40],
+        borderColor: C.green, backgroundColor: 'transparent',
+        borderWidth: 2.5, pointRadius: 3, tension: 0.35,
+      },
+      {
+        label: 'Overall Win Rate',
+        data: [35,36,33,35,31,37,35,38,40,39,41,38],
+        borderColor: C.orange, backgroundColor: 'transparent',
+        borderWidth: 2.5, pointRadius: 3, tension: 0.35, borderDash: [5,3],
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top' } },
+    scales: {
+      y: {
+        beginAtZero: false, min: 25, grid: { color: LIGHT_GRID },
+        ticks: { callback: v => v + '%' }
+      },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// Deal Cycle Time by Segment
+CH.dealCycle = new Chart(document.getElementById('dealCycleChart'), {
+  type: 'bar',
+  data: {
+    labels: quarters,
+    datasets: [
+      { label: 'Enterprise', data: [95,92,88,85,82,80,78,75,72,70,67], backgroundColor: alpha(C.blue, 0.85), borderRadius: 4 },
+      { label: 'Mid-Market', data: [55,52,50,48,46,45,44,43,42,41,40], backgroundColor: alpha(C.teal, 0.85), borderRadius: 4 },
+      { label: 'SMB',        data: [32,30,29,28,27,27,26,26,25,25,24], backgroundColor: alpha(C.purple, 0.75), borderRadius: 4 },
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top' } },
+    scales: {
+      y: { beginAtZero: true, grid: { color: LIGHT_GRID }, title: { display: true, text: 'Days' } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// TAB 2 · ADOPTION
+// ═══════════════════════════════════════════════════════════════
+
+// New Devices
+CH.newDevices = new Chart(document.getElementById('newDevicesChart'), {
+  type: 'bar',
+  data: {
+    labels: months12,
+    datasets: [{
+      label: 'New Devices',
+      data: [820,870,930,910,970,1040,1060,1100,1150,1170,1230,1284],
+      backgroundColor: alpha(C.blue, 0.8),
+      borderRadius: 5,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: false, min: 700, grid: { color: LIGHT_GRID } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// Attachments
+(function() {
+  const ctx = document.getElementById('attachmentsChart');
+  const data = [2100,2180,2320,2400,2480,2600,2700,2850,2980,3100,3250,3471];
+  CH.attachments = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: months12,
+      datasets: [{
+        label: 'Attachments',
+        data,
+        borderColor: C.teal,
+        backgroundColor: grad(ctx.getContext('2d'), C.teal, 0.25, 0.02),
+        fill: true, borderWidth: 2.5, pointRadius: 3, tension: 0.4,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: false, min: 1800, grid: { color: LIGHT_GRID } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+})();
+
+// Co-terminated Endpoints
+(function() {
+  const ctx = document.getElementById('cotermChart');
+  const data = [5800,6100,6400,6600,6900,7200,7500,7700,8000,8300,8600,8920];
+  CH.coterm = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: months12,
+      datasets: [{
+        label: 'Co-term Endpoints',
+        data,
+        borderColor: C.green,
+        backgroundColor: grad(ctx.getContext('2d'), C.green, 0.2, 0.02),
+        fill: true, borderWidth: 2.5, pointRadius: 3, tension: 0.4,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: false, min: 5000, grid: { color: LIGHT_GRID } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+})();
+
+// Growth by Metro
+CH.metroGrowth = new Chart(document.getElementById('metroGrowthChart'), {
+  type: 'bar',
+  data: {
+    labels: ['SV','NY','DA','AM','LD','SY','TK','FR','SG','LA','DC','SE'],
+    datasets: [{
+      label: 'New Devices (QTD)',
+      data: [310,280,240,220,190,175,160,145,135,120,110,98],
+      backgroundColor: [C.blue,C.teal,C.purple,C.orange,C.green,C.indigo,
+                        C.cyan,C.pink,C.yellow,C.blue,C.teal,C.purple].map(c=>alpha(c,0.82)),
+      borderRadius: 5,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false },
+      tooltip: { callbacks: { footer: ctx => `Metro: ${ctx[0].label}` } }
+    },
+    scales: {
+      y: { beginAtZero: true, grid: { color: LIGHT_GRID }, title: { display: true, text: 'New Devices' } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// TAB 3 · PARTNERS
+// ═══════════════════════════════════════════════════════════════
+
+// Top 10 Partners by MRR
+CH.topPartners = new Chart(document.getElementById('topPartnersChart'), {
+  type: 'bar',
+  data: {
+    labels: ['TeleSys Corp','Netlink Partners','DataBridge Inc','CloudRoute LLC',
+             'ConnectX','EdgeNet Pro','FiberCore','GlobalWAN','InfraLink','MeshPath'],
+    datasets: [{
+      label: 'MRR ($K)',
+      data: [185, 162, 148, 134, 121, 107, 98, 89, 82, 74],
+      backgroundColor: alpha(C.blue, 0.82),
+      borderRadius: 4,
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    plugins: { legend: { display: false },
+      tooltip: { callbacks: { label: ctx => ` $${ctx.raw}K MRR` } }
+    },
+    scales: {
+      x: { beginAtZero: true, grid: { color: LIGHT_GRID }, title: { display: true, text: 'MRR ($K)' } },
+      y: { grid: { display: false } }
+    }
+  }
+});
+
+// MoM Channel Partner Growth
+CH.momGrowth = new Chart(document.getElementById('momGrowthChart'), {
+  type: 'bar',
+  data: {
+    labels: months12,
+    datasets: [{
+      label: 'MoM Growth %',
+      data: [4.2, 3.8, 5.1, 3.2, 4.8, 6.0, 5.4, 7.1, 6.8, 8.2, 7.5, 8.0],
+      backgroundColor: months12.map((_,i) => i%2===0 ? alpha(C.teal,0.85) : alpha(C.teal,0.55)),
+      borderRadius: 4,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: true, grid: { color: LIGHT_GRID },
+        ticks: { callback: v => v + '%' },
+        title: { display: true, text: 'MoM Change %' }
+      },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// YoY Growth
+CH.yoyGrowth = new Chart(document.getElementById('yoyGrowthChart'), {
+  type: 'bar',
+  data: {
+    labels: ['FY22','FY23','FY24','FY25','FY26 (proj)'],
+    datasets: [
+      { label: 'Partner MRR ($M)', data: [0.8, 1.1, 1.4, 1.8, 2.4], backgroundColor: alpha(C.purple, 0.85), borderRadius: 5 },
+      { label: 'YoY Growth %',     data: [18, 22, 27, 34, 36],
+        type: 'line', yAxisID: 'y2', borderColor: C.orange, backgroundColor: 'transparent',
+        borderWidth: 2.5, pointRadius: 4, tension: 0.3
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top' } },
+    scales: {
+      y:  { beginAtZero: true, grid: { color: LIGHT_GRID }, title: { display: true, text: 'MRR ($M)' } },
+      y2: { position: 'right', beginAtZero: true, grid: { display: false },
+            ticks: { callback: v => v + '%' }, title: { display: true, text: 'Growth %' } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// Partner MRC Stacked
+CH.partnerMrc = new Chart(document.getElementById('partnerMrcChart'), {
+  type: 'bar',
+  data: {
+    labels: months12,
+    datasets: [
+      { label: 'Platinum',  data: [480,510,540,520,560,590,610,640,660,690,720,750], backgroundColor: alpha(C.blue,0.88), borderRadius: [4,4,0,0] },
+      { label: 'Gold',      data: [380,400,410,420,440,460,470,490,500,520,540,560], backgroundColor: alpha(C.teal,0.8) },
+      { label: 'Silver',    data: [260,270,280,285,300,310,320,330,340,350,360,380], backgroundColor: alpha(C.purple,0.75) },
+      { label: 'Registered',data: [180,185,190,200,210,220,230,240,250,260,270,280], backgroundColor: alpha(C.orange,0.7) },
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top' } },
+    scales: {
+      y: { stacked: true, beginAtZero: true, grid: { color: LIGHT_GRID }, title: { display: true, text: 'MRC ($K)' } },
+      x: { stacked: true, grid: { display: false } }
+    }
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// TAB 4 · CUSTOMER HEALTH
+// ═══════════════════════════════════════════════════════════════
+
+// Churn
+(function() {
+  const ctx = document.getElementById('churnChart');
+  const data = [2.8,2.6,3.1,2.9,2.7,2.5,2.6,2.4,2.2,2.0,2.1,1.8];
+  CH.churn = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: months12,
+      datasets: [{
+        label: 'Churn Rate %',
+        data,
+        borderColor: C.red,
+        backgroundColor: grad(ctx.getContext('2d'), C.red, 0.2, 0.02),
+        fill: true, borderWidth: 2.5, pointRadius: 3, tension: 0.4,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { min: 1, max: 4, grid: { color: LIGHT_GRID }, ticks: { callback: v => v + '%' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+})();
+
+// Declines
+CH.declines = new Chart(document.getElementById('declinesChart'), {
+  type: 'bar',
+  data: {
+    labels: months12,
+    datasets: [{
+      label: 'Payment Declines',
+      data: [34,29,38,32,28,31,27,24,22,20,21,23],
+      backgroundColor: months12.map((_,i) => {
+        const v = [34,29,38,32,28,31,27,24,22,20,21,23][i];
+        return v >= 30 ? alpha(C.red,0.8) : alpha(C.orange,0.7);
+      }),
+      borderRadius: 4,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: true, grid: { color: LIGHT_GRID } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// Case Load + MTTR
+CH.caseLoad = new Chart(document.getElementById('caseLoadChart'), {
+  type: 'bar',
+  data: {
+    labels: months12,
+    datasets: [
+      {
+        label: 'Open Cases',
+        data: [124,118,135,121,112,108,101,96,93,90,88,87],
+        backgroundColor: alpha(C.blue, 0.7),
+        borderRadius: 4,
+        yAxisID: 'y',
+      },
+      {
+        label: 'MTTR (hrs)',
+        data: [6.2,5.8,7.1,6.4,5.9,5.5,5.2,4.9,4.7,4.5,4.4,4.2],
+        type: 'line',
+        borderColor: C.orange, backgroundColor: 'transparent',
+        borderWidth: 2.5, pointRadius: 3, tension: 0.35,
+        yAxisID: 'y2',
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top' } },
+    scales: {
+      y:  { beginAtZero: false, min: 70, grid: { color: LIGHT_GRID }, title: { display: true, text: 'Open Cases' } },
+      y2: { position: 'right', beginAtZero: true, grid: { display: false },
+            title: { display: true, text: 'MTTR (hrs)' } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// Mean vs Median TTR
+CH.ttr = new Chart(document.getElementById('ttrChart'), {
+  type: 'line',
+  data: {
+    labels: months12,
+    datasets: [
+      {
+        label: 'Mean TTR (hrs)',
+        data: [6.2,5.8,7.1,6.4,5.9,5.5,5.2,4.9,4.7,4.5,4.4,4.2],
+        borderColor: C.orange, backgroundColor: 'transparent',
+        borderWidth: 2.5, pointRadius: 3, tension: 0.35,
+      },
+      {
+        label: 'Median TTR (hrs)',
+        data: [3.1,2.9,3.6,3.2,2.8,2.7,2.5,2.4,2.2,2.1,2.1,2.1],
+        borderColor: C.teal, backgroundColor: 'transparent',
+        borderWidth: 2.5, pointRadius: 3, tension: 0.35,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top' } },
+    scales: {
+      y: { beginAtZero: true, grid: { color: LIGHT_GRID },
+        title: { display: true, text: 'Hours' } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// TAB 5 · COMPETITIVE
+// ═══════════════════════════════════════════════════════════════
+
+// Win/Loss by Competitor
+CH.competitorWinLoss = new Chart(document.getElementById('competitorWinLossChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Megaport','Zayo','PacketFabric','Console Connect','Colt','Telstra','Tata Comm.'],
+    datasets: [
+      { label: 'Wins', data: [28,34,41,38,44,51,56], backgroundColor: alpha(C.green,0.85), borderRadius: 4 },
+      { label: 'Losses', data: [62,36,28,22,18,14,10], backgroundColor: alpha(C.red,0.75), borderRadius: 4 },
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top' } },
+    scales: {
+      y: { beginAtZero: true, stacked: false, grid: { color: LIGHT_GRID } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// Loss Reasons (donut)
+CH.lossReasons = new Chart(document.getElementById('lossReasonsChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Price / Cost','Latency / Perf','Competitor Feature','Compliance','Incumbency','Speed to Deploy','Unknown'],
+    datasets: [{
+      data: [44,18,14,10,8,4,2],
+      backgroundColor: [C.red,C.orange,C.purple,C.blue,C.teal,C.yellow,C.pink].map(c=>alpha(c,0.85)),
+      borderWidth: 2,
+      borderColor: '#ffffff',
+      hoverOffset: 6,
+    }]
+  },
+  options: {
+    responsive: true,
+    cutout: '58%',
+    plugins: {
+      legend: { position: 'right' },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw}%` } }
+    }
+  }
+});
+
+// Win Rate Trend vs Competitors
+CH.compWinTrend = new Chart(document.getElementById('compWinTrendChart'), {
+  type: 'line',
+  data: {
+    labels: months12,
+    datasets: [
+      {
+        label: 'vs Megaport',
+        data: [29,31,28,30,32,30,33,35,36,34,37,38],
+        borderColor: C.red, backgroundColor: 'transparent',
+        borderWidth: 2, pointRadius: 2, tension: 0.35,
+      },
+      {
+        label: 'vs Zayo',
+        data: [41,43,40,42,44,45,46,47,49,50,51,52],
+        borderColor: C.orange, backgroundColor: 'transparent',
+        borderWidth: 2, pointRadius: 2, tension: 0.35,
+      },
+      {
+        label: 'vs PacketFabric',
+        data: [54,55,52,56,57,58,59,60,61,62,63,65],
+        borderColor: C.teal, backgroundColor: 'transparent',
+        borderWidth: 2, pointRadius: 2, tension: 0.35,
+      },
+      {
+        label: 'vs Console Connect',
+        data: [60,61,59,62,63,65,66,67,68,69,70,71],
+        borderColor: C.purple, backgroundColor: 'transparent',
+        borderWidth: 2, pointRadius: 2, tension: 0.35,
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top' } },
+    scales: {
+      y: { min: 20, max: 80, grid: { color: LIGHT_GRID },
+        ticks: { callback: v => v + '%' },
+        title: { display: true, text: 'Win Rate %' }
+      },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// Competitor Table
+const compData = [
+  { name: 'Megaport',        lost: 62, price: 44, latency: 22, compliance:  8, feature: 16, incumbent:  6, winRate: '31%' },
+  { name: 'Zayo',            lost: 36, price: 48, latency: 12, compliance: 10, feature: 14, incumbent: 11, winRate: '49%' },
+  { name: 'PacketFabric',    lost: 28, price: 42, latency: 16, compliance:  9, feature: 18, incumbent: 10, winRate: '59%' },
+  { name: 'Console Connect', lost: 22, price: 36, latency: 18, compliance: 14, feature: 20, incumbent:  8, winRate: '63%' },
+  { name: 'Colt',            lost: 18, price: 38, latency: 14, compliance: 22, feature: 12, incumbent: 10, winRate: '71%' },
+  { name: 'Telstra',         lost: 14, price: 40, latency:  8, compliance: 20, feature: 14, incumbent: 14, winRate: '78%' },
+  { name: 'Tata Comm.',      lost: 10, price: 44, latency:  6, compliance: 18, feature: 10, incumbent: 18, winRate: '85%' },
+];
+// ─── Bootstrap: populate table then attempt live fetch ────────────────────
+// Table uses sample data always (it's not a Chart.js instance)
+const tbody = document.getElementById('compTableBody');
+compData.forEach(r => {
+  const wr = parseInt(r.winRate);
+  const color = wr >= 60 ? 'pill-green' : wr >= 40 ? 'pill-blue' : 'pill-red';
+  tbody.innerHTML += `
+    <tr>
+      <td><strong>${r.name}</strong></td>
+      <td>${r.lost}</td>
+      <td>
+        <div class="win-bar-wrap">
+          <div class="win-bar" style="width:${r.price*0.8}px;background:${C.red}88"></div>
+          ${r.price}%
+        </div>
+      </td>
+      <td>
+        <div class="win-bar-wrap">
+          <div class="win-bar" style="width:${r.latency*0.8}px;background:${C.orange}88"></div>
+          ${r.latency}%
+        </div>
+      </td>
+      <td>${r.compliance}%</td>
+      <td>${r.feature}%</td>
+      <td>${r.incumbent}%</td>
+      <td><span class="pill ${color}">${r.winRate}</span></td>
+    </tr>`;
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EXTENSION: PIPELINE & OUTCOME ENGINE (Tab 1 additions)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Win Rate by Quarter vs Direct-Connect Alternatives
+CH.winRateQtr = new Chart(document.getElementById('winRateQtrChart'), {
+  type: 'line',
+  data: {
+    labels: quarters,
+    datasets: [
+      { label: 'vs Megaport',       data: [29,31,28,30,32,30,33,35,36,34,37,38], borderColor: C.red,    backgroundColor:'transparent', borderWidth:2.5, pointRadius:3, tension:.35 },
+      { label: 'vs Zayo',           data: [41,43,40,42,44,45,46,47,49,50,51,52], borderColor: C.orange, backgroundColor:'transparent', borderWidth:2.5, pointRadius:3, tension:.35 },
+      { label: 'vs PacketFabric',   data: [54,55,52,56,57,58,59,60,61,62,63,65], borderColor: C.teal,   backgroundColor:'transparent', borderWidth:2.5, pointRadius:3, tension:.35 },
+      { label: 'vs Console Connect',data: [60,61,59,62,63,65,66,67,68,69,70,71], borderColor: C.purple, backgroundColor:'transparent', borderWidth:2.5, pointRadius:3, tension:.35 },
+    ]
+  },
+  options: { responsive:true, plugins:{legend:{position:'top'}},
+    scales:{ y:{min:20,max:80,grid:{color:LIGHT_GRID},ticks:{callback:v=>v+'%'}}, x:{grid:{display:false}} } }
+});
+
+// Win/Loss Reason Detail — Latency, Price, Compliance, Support
+CH.reasonDetail = new Chart(document.getElementById('reasonDetailChart'), {
+  type: 'bar',
+  data: {
+    labels: months12,
+    datasets: [
+      { label:'Latency',    data:[3,4,3,5,4,3,5,4,3,4,3,4], backgroundColor:alpha(C.red,.8),    borderRadius:3 },
+      { label:'Price',      data:[8,7,9,8,7,8,7,8,9,8,7,8], backgroundColor:alpha(C.orange,.8), borderRadius:3 },
+      { label:'Compliance', data:[2,2,3,2,2,2,2,3,2,2,2,2], backgroundColor:alpha(C.purple,.8), borderRadius:3 },
+      { label:'Support',    data:[1,2,1,2,1,1,2,1,1,2,1,2], backgroundColor:alpha(C.yellow,.8), borderRadius:3 },
+      { label:'Wins',       data:[14,12,13,11,14,15,16,15,17,16,18,17], backgroundColor:alpha(C.green,.8), borderRadius:3 },
+    ]
+  },
+  options: { responsive:true, plugins:{legend:{position:'top'}},
+    scales:{ y:{beginAtZero:true,grid:{color:LIGHT_GRID}}, x:{grid:{display:false}} } }
+});
+
+// Metro × Competitor drill-down table
+(function buildMetroCompTable() {
+  const rows = [
+    { metro:'Silicon Valley', deals:42, wins:24, losses:18, comp:'Megaport', reason:'Price', trend:'▲' },
+    { metro:'New York',       deals:38, wins:20, losses:18, comp:'Zayo',     reason:'Price', trend:'▲' },
+    { metro:'Dallas',         deals:31, wins:18, losses:13, comp:'Megaport', reason:'Latency', trend:'→' },
+    { metro:'Amsterdam',      deals:29, wins:18, losses:11, comp:'Colt',     reason:'Compliance', trend:'▲' },
+    { metro:'London',         deals:27, wins:17, losses:10, comp:'Colt',     reason:'Compliance', trend:'▲' },
+    { metro:'Sydney',         deals:22, wins:15, losses:7,  comp:'Telstra',  reason:'Incumbency', trend:'▲' },
+    { metro:'Tokyo',          deals:20, wins:13, losses:7,  comp:'NTT',      reason:'Incumbency', trend:'→' },
+    { metro:'Frankfurt',      deals:19, wins:13, losses:6,  comp:'Colt',     reason:'Compliance', trend:'▲' },
+    { metro:'Singapore',      deals:18, wins:12, losses:6,  comp:'Tata',     reason:'Price', trend:'▲' },
+    { metro:'Los Angeles',    deals:16, wins:10, losses:6,  comp:'Megaport', reason:'Latency', trend:'→' },
+  ];
+  const tbody = document.getElementById('metroCompBody');
+  rows.forEach(r => {
+    const wr = Math.round(r.wins/r.deals*100);
+    const cls = wr>=60?'pill-green':wr>=45?'pill-blue':'pill-red';
+    tbody.innerHTML += `<tr>
+      <td><strong>${r.metro}</strong></td>
+      <td>${r.deals}</td>
+      <td>${r.wins}</td>
+      <td>${r.losses}</td>
+      <td><span class="pill ${cls}">${wr}%</span></td>
+      <td>${r.comp}</td>
+      <td>${r.reason}</td>
+      <td style="font-size:16px;color:${r.trend==='▲'?'#22c55e':'#94a3b8'}">${r.trend}</td>
+    </tr>`;
+  });
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EXTENSION: CUSTOMER ADOPTION & GROWTH (Tab 2 additions)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Net New Customers + VC Attachments
+CH.netNewCust = new Chart(document.getElementById('netNewCustChart'), {
+  type: 'bar',
+  data: {
+    labels: months12,
+    datasets: [
+      { label:'New Attachments', data:[420,450,480,460,510,540,560,590,620,640,680,710], backgroundColor:alpha(C.green,.8), borderRadius:3 },
+      { label:'Dropped Attachments', data:[-80,-70,-90,-75,-80,-70,-75,-80,-70,-75,-80,-70], backgroundColor:alpha(C.red,.7), borderRadius:3 },
+      { label:'Net New Customers', data:[11,9,13,8,12,10,14,11,16,15,17,15],
+        type:'line', borderColor:C.blue, backgroundColor:'transparent', borderWidth:2.5, pointRadius:3, yAxisID:'y2' },
+    ]
+  },
+  options: { responsive:true, plugins:{legend:{position:'top'}},
+    scales:{
+      y:{stacked:false,grid:{color:LIGHT_GRID},title:{display:true,text:'Attachments'}},
+      y2:{position:'right',beginAtZero:true,grid:{display:false},title:{display:true,text:'New Customers'}},
+      x:{grid:{display:false}}
+    }
+  }
+});
+
+// IBX in Use by Metro
+CH.ibxMetro = new Chart(document.getElementById('ibxMetroChart'), {
+  type: 'bar',
+  data: {
+    labels: ['SV (SV1-8)','NY (NY1-9)','DA (DA1-3)','AM (AM1-7)','LD (LD1-8)','SY (SY1-4)','TK (TY1-4)','FR (FR2-7)','SG (SG1-4)','LA (LA1-4)'],
+    datasets: [
+      { label:'IBX Count in Use', data:[8,7,3,6,7,4,4,5,4,4], backgroundColor:alpha(C.blue,.8), borderRadius:3 },
+      { label:'Total Active Devices', data:[310,280,240,220,190,175,160,145,135,120],
+        type:'line', borderColor:C.teal, backgroundColor:'transparent', borderWidth:2, pointRadius:3, yAxisID:'y2' },
+    ]
+  },
+  options: { responsive:true, plugins:{legend:{position:'top'}},
+    scales:{
+      y:{beginAtZero:true,grid:{color:LIGHT_GRID},title:{display:true,text:'IBX Count'}},
+      y2:{position:'right',beginAtZero:true,grid:{display:false},title:{display:true,text:'Devices'}},
+      x:{grid:{display:false}}
+    }
+  }
+});
+
+// Growth by Segment
+CH.segGrowth = new Chart(document.getElementById('segGrowthChart'), {
+  type: 'line',
+  data: {
+    labels: months12,
+    datasets: [
+      { label:'1–5 Devices',       data:[820,845,870,890,920,950,980,1010,1050,1080,1120,1160], borderColor:C.blue,   backgroundColor:'transparent', borderWidth:2, pointRadius:2, tension:.35 },
+      { label:'Redundant Deploy',  data:[280,295,310,320,335,350,365,380,400,415,430,450], borderColor:C.teal,   backgroundColor:'transparent', borderWidth:2, pointRadius:2, tension:.35 },
+      { label:'DLG',               data:[110,115,120,125,130,138,145,152,160,168,176,185], borderColor:C.purple, backgroundColor:'transparent', borderWidth:2, pointRadius:2, tension:.35 },
+      { label:'EVP-LAN',           data:[85,88,92,95,100,105,110,116,122,128,135,142],    borderColor:C.orange, backgroundColor:'transparent', borderWidth:2, pointRadius:2, tension:.35 },
+      { label:'Direct-Connect',    data:[200,212,224,236,248,262,276,290,306,322,338,356], borderColor:C.green,  backgroundColor:'transparent', borderWidth:2, pointRadius:2, tension:.35 },
+    ]
+  },
+  options: { responsive:true, plugins:{legend:{position:'top'}},
+    scales:{ y:{beginAtZero:false,grid:{color:LIGHT_GRID},title:{display:true,text:'Active Devices'}}, x:{grid:{display:false}} } }
+});
+
+// Segment Cohort Table
+(function buildSegCohortTable() {
+  const rows = [
+    { seg:'1–5 Devices',      cust:720, dev:1160, netAdds:40, mom:3.6, avgDev:1.6, churn:1.2, health:'green' },
+    { seg:'Redundant Deployments', cust:280, dev:450, netAdds:20, mom:4.7, avgDev:1.6, churn:1.4, health:'green' },
+    { seg:'Direct-Connect',   cust:160, dev:356, netAdds:18, mom:5.6, avgDev:2.2, churn:0.9, health:'green' },
+    { seg:'DLG',              cust:90,  dev:185, netAdds:9,  mom:5.1, avgDev:2.1, churn:1.1, health:'green' },
+    { seg:'EVP-LAN',          cust:72,  dev:142, netAdds:7,  mom:5.2, avgDev:2.0, churn:1.3, health:'green' },
+    { seg:'Multi-metro',      cust:48,  dev:290, netAdds:12, mom:4.3, avgDev:6.0, churn:0.6, health:'green' },
+    { seg:'Enterprise WAN',   cust:38,  dev:228, netAdds:8,  mom:3.6, avgDev:6.0, churn:0.8, health:'green' },
+  ];
+  const tbody = document.getElementById('segCohortBody');
+  const oc = (v,good)=> v<=1.5?'#22c55e':v<=2.5?'#f97316':'#ef4444';
+  rows.forEach(r => {
+    tbody.innerHTML += `<tr>
+      <td>${r.seg}</td>
+      <td>${r.cust.toLocaleString()}</td>
+      <td>${r.dev.toLocaleString()}</td>
+      <td style="color:var(--eq-green);font-weight:700;">+${r.netAdds}</td>
+      <td style="color:var(--eq-teal);font-weight:700;">+${r.mom}%</td>
+      <td>${r.avgDev.toFixed(1)}</td>
+      <td style="color:${oc(r.churn)};font-weight:700;">${r.churn}%</td>
+      <td><span class="pill pill-green">Healthy</span></td>
+    </tr>`;
+  });
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 6 · FINANCIAL HEALTH
+// ═══════════════════════════════════════════════════════════════════════════
+
+// MRR / ARR Trend
+CH.mrrArr = new Chart(document.getElementById('mrrArrChart'), {
+  type: 'bar',
+  data: {
+    labels: months12,
+    datasets: [
+      { label:'MRR ($M)', data:[2.8,2.9,3.0,3.0,3.1,3.2,3.3,3.4,3.5,3.6,3.7,3.8], backgroundColor:alpha(C.blue,.8), borderRadius:4 },
+      { label:'ARR Run-Rate ($M)', data:[33.6,34.8,36,36,37.2,38.4,39.6,40.8,42,43.2,44.4,45.6],
+        type:'line', borderColor:C.teal, backgroundColor:'transparent', borderWidth:2.5, pointRadius:3, yAxisID:'y2' },
+    ]
+  },
+  options:{ responsive:true, plugins:{legend:{position:'top'}},
+    scales:{
+      y:{beginAtZero:false,min:2.5,grid:{color:LIGHT_GRID},title:{display:true,text:'MRR ($M)'}},
+      y2:{position:'right',beginAtZero:false,min:30,grid:{display:false},title:{display:true,text:'ARR ($M)'}},
+      x:{grid:{display:false}}
+    }
+  }
+});
+
+// Service Type Donut
+const svcLabels = ['Routing / WAN','Firewall / Security','SD-WAN','Load Balancing / ADC','Cloud Networking','DNS / IPAM / DDI','Network Visibility','Other / NFV'];
+const svcColors = [C.blue,C.red,C.teal,C.orange,C.purple,C.yellow,C.pink,C.indigo].map(c=>alpha(c,.85));
+CH.serviceTypeDonut = new Chart(document.getElementById('serviceTypeDonut'), {
+  type: 'doughnut',
+  data: { labels:svcLabels, datasets:[{ data:[28,18,22,8,12,4,5,3], backgroundColor:svcColors, borderWidth:2, borderColor:'#ffffff', hoverOffset:6 }] },
+  options:{ responsive:true, cutout:'55%', plugins:{legend:{position:'right'}, tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${ctx.raw}%`}}} }
+});
+
+// Service Type Revenue Stacked Area
+(function(){
+  const ctx = document.getElementById('serviceRevChart');
+  CH.serviceRev = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels:months12,
+      datasets:[
+        { label:'Routing/WAN',    data:[800,820,850,870,900,930,960,1000,1030,1060,1090,1120], fill:'origin', borderColor:C.blue,   backgroundColor:alpha(C.blue,.15),   borderWidth:1.5, pointRadius:0, tension:.4 },
+        { label:'Firewall/Sec',   data:[480,495,510,525,540,560,580,600,620,640,660,680],       fill:'origin', borderColor:C.red,    backgroundColor:alpha(C.red,.12),    borderWidth:1.5, pointRadius:0, tension:.4 },
+        { label:'SD-WAN',         data:[560,580,600,618,636,660,684,706,728,750,774,798],       fill:'origin', borderColor:C.teal,   backgroundColor:alpha(C.teal,.12),   borderWidth:1.5, pointRadius:0, tension:.4 },
+        { label:'LB / ADC',       data:[200,206,212,218,225,232,240,248,256,264,272,280],       fill:'origin', borderColor:C.orange, backgroundColor:alpha(C.orange,.1),  borderWidth:1.5, pointRadius:0, tension:.4 },
+        { label:'Cloud NW',       data:[280,294,308,322,338,354,370,386,404,422,440,458],       fill:'origin', borderColor:C.purple, backgroundColor:alpha(C.purple,.1),  borderWidth:1.5, pointRadius:0, tension:.4 },
+        { label:'DNS/DDI',        data:[80,82,84,86,88,92,96,100,104,108,112,116],              fill:'origin', borderColor:C.yellow, backgroundColor:alpha(C.yellow,.1),  borderWidth:1.5, pointRadius:0, tension:.4 },
+        { label:'Visibility',     data:[100,104,108,112,116,120,126,132,138,144,150,156],       fill:'origin', borderColor:C.pink,   backgroundColor:alpha(C.pink,.1),    borderWidth:1.5, pointRadius:0, tension:.4 },
+        { label:'Other',          data:[60,62,64,65,67,70,72,74,76,78,80,82],                  fill:'origin', borderColor:C.indigo, backgroundColor:alpha(C.indigo,.1),  borderWidth:1.5, pointRadius:0, tension:.4 },
+      ]
+    },
+    options:{responsive:true, plugins:{legend:{position:'top'}},
+      scales:{y:{stacked:true,beginAtZero:true,grid:{color:LIGHT_GRID},title:{display:true,text:'Revenue ($K)'}},x:{stacked:true,grid:{display:false}}}
+    }
+  });
+})();
+
+// Commercial Mix Donut
+CH.commercialMix = new Chart(document.getElementById('commercialMixChart'), {
+  type:'doughnut',
+  data:{ labels:['BYOL','Equinix Subscription','Vendor-Managed','Pay-as-you-go'],
+    datasets:[{ data:[42,38,12,8], backgroundColor:[C.blue,C.teal,C.purple,C.orange].map(c=>alpha(c,.85)), borderWidth:2, borderColor:'#ffffff', hoverOffset:6 }]
+  },
+  options:{responsive:true,cutout:'55%',plugins:{legend:{position:'right'},tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${ctx.raw}%`}}}}
+});
+
+// Service Type Bar (devices + growth)
+CH.serviceTypeBar = new Chart(document.getElementById('serviceTypeBarChart'), {
+  type:'bar',
+  data:{
+    labels:svcLabels.map(l=>l.length>16?l.slice(0,16)+'…':l),
+    datasets:[
+      { label:'% Devices', data:[28,18,22,8,12,4,5,3], backgroundColor:svcColors, borderRadius:4 },
+    ]
+  },
+  options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},
+    scales:{x:{beginAtZero:true,grid:{color:LIGHT_GRID},ticks:{callback:v=>v+'%'}},y:{grid:{display:false}}}
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 7 · VENDOR & SERVICE MIX
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Vendor × Service Matrix
+(function buildVendorMatrix() {
+  const vendors = ['Cisco','Juniper','Fortinet','Palo Alto','VMware/Broadcom','Aruba/HPE','F5 Networks','Infoblox','Versa Networks','Arista'];
+  const services = ['Routing/WAN','Firewall/Sec','SD-WAN','LB/ADC','Cloud NW','DNS/DDI','Visibility','Other'];
+  // heat level 0-4 per [vendor][service]
+  const matrix = [
+    [4,3,2,1,3,0,2,1], // Cisco
+    [4,2,2,0,2,0,3,1], // Juniper
+    [2,4,4,0,2,0,2,0], // Fortinet
+    [0,4,1,0,3,0,3,0], // Palo Alto
+    [1,1,4,2,3,0,2,1], // VMware
+    [2,2,4,0,2,0,1,0], // Aruba
+    [0,2,0,4,1,0,3,0], // F5
+    [0,0,0,0,0,4,0,0], // Infoblox
+    [2,1,4,0,2,0,1,0], // Versa
+    [4,1,1,1,3,0,3,1], // Arista
+  ];
+  const labels = ['—','●','●●','●●●','●●●●'];
+  const table = document.getElementById('vendorMatrix');
+  table.innerHTML = `<thead><tr><th class="row-hdr">Vendor</th>${services.map(s=>`<th>${s}</th>`).join('')}</tr></thead>`;
+  const tbody = document.createElement('tbody');
+  matrix.forEach((row,i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td style="font-weight:600;font-size:12px;padding:8px 10px;text-align:left;">${vendors[i]}</td>` +
+      row.map(h=>`<td class="heat-${h}"><span class="heat-label">${labels[h]}</span></td>`).join('');
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+})();
+
+// Vendor Active Devices share
+const vendorNames = ['Cisco','Juniper','Fortinet','Palo Alto','VMware','Aruba/HPE','F5','Versa','Arista','Other'];
+const vendorActiveData = [35,18,14,10,9,5,4,3,2,0].map((v,i,a)=> i===9 ? 100-a.slice(0,9).reduce((s,x)=>s+x,0) : v);
+CH.vendorActive = new Chart(document.getElementById('vendorActiveChart'), {
+  type:'bar',
+  data:{ labels:vendorNames,
+    datasets:[{ label:'% Active Devices', data:vendorActiveData,
+      backgroundColor:vendorNames.map((_,i)=>alpha([C.blue,C.teal,C.red,C.orange,C.purple,C.indigo,C.pink,C.cyan,C.yellow,C.green][i],.82)),
+      borderRadius:4 }]
+  },
+  options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},
+    scales:{x:{beginAtZero:true,grid:{color:LIGHT_GRID},ticks:{callback:v=>v+'%'},title:{display:true,text:'Share of Active Devices'}},y:{grid:{display:false}}}
+  }
+});
+
+// Vendor New Deployments share
+const vendorNewData = [22,16,18,12,8,7,4,5,3,0].map((v,i,a)=> i===9 ? 100-a.slice(0,9).reduce((s,x)=>s+x,0) : v);
+CH.vendorNew = new Chart(document.getElementById('vendorNewChart'), {
+  type:'bar',
+  data:{ labels:vendorNames,
+    datasets:[{ label:'% New Deployments', data:vendorNewData,
+      backgroundColor:vendorNames.map((_,i)=>alpha([C.blue,C.teal,C.red,C.orange,C.purple,C.indigo,C.pink,C.cyan,C.yellow,C.green][i],.82)),
+      borderRadius:4 }]
+  },
+  options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},
+    scales:{x:{beginAtZero:true,grid:{color:LIGHT_GRID},ticks:{callback:v=>v+'%'},title:{display:true,text:'Share of New Deployments'}},y:{grid:{display:false}}}
+  }
+});
+
+// Vendor Trend (Active vs New - top 6)
+CH.vendorTrend = new Chart(document.getElementById('vendorTrendChart'), {
+  type:'bar',
+  data:{
+    labels:['Cisco','Juniper','Fortinet','Palo Alto','VMware','Aruba'],
+    datasets:[
+      { label:'Active Share %', data:[35,18,14,10,9,5], backgroundColor:alpha(C.blue,.75), borderRadius:[3,3,0,0] },
+      { label:'New Deploy %',   data:[22,16,18,12,8,7], backgroundColor:alpha(C.teal,.75), borderRadius:[3,3,0,0] },
+    ]
+  },
+  options:{responsive:true,plugins:{legend:{position:'top'}},
+    scales:{y:{beginAtZero:true,grid:{color:LIGHT_GRID},ticks:{callback:v=>v+'%'}},x:{grid:{display:false}}}
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 8 · CONNECTIVITY
+// ═══════════════════════════════════════════════════════════════════════════
+
+const destLabels = ['AWS','Azure','Google Cloud','Oracle Cloud','Other CSP','SaaS Providers','Internet','Equinix Fabric','Network Service Providers','Customer Physical Infra','Other NE Devices','DLG','EVP-LAN','BYOC','Equinix Internet Access'];
+const destData   = [14,12,8,3,4,9,10,11,7,6,5,3,3,2,3];
+const destPalette = [C.orange,C.blue,C.red,C.red,C.orange,C.purple,C.teal,C.blue,C.indigo,C.green,C.pink,C.cyan,C.yellow,C.teal,C.blue].map((c,i)=>alpha(c,.82));
+
+CH.destMix = new Chart(document.getElementById('destMixChart'), {
+  type:'bar',
+  data:{ labels:destLabels, datasets:[{ label:'% of Connections', data:destData, backgroundColor:destPalette, borderRadius:4 }] },
+  options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},
+    scales:{x:{beginAtZero:true,grid:{color:LIGHT_GRID},ticks:{callback:v=>v+'%'},title:{display:true,text:'% of Active Connections'}},y:{grid:{display:false}}}
+  }
+});
+
+CH.neConnMix = new Chart(document.getElementById('neConnMixChart'), {
+  type:'doughnut',
+  data:{ labels:['Cloud Connectivity','Enterprise / WAN','Internet Edge','Security','Application Delivery'],
+    datasets:[{ data:[42,27,18,8,5], backgroundColor:[C.blue,C.teal,C.purple,C.red,C.orange].map(c=>alpha(c,.85)), borderWidth:2, borderColor:'#ffffff', hoverOffset:6 }]
+  },
+  options:{responsive:true,cutout:'55%',plugins:{legend:{position:'right'},tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${ctx.raw}%`}}}}
+});
+
+(function(){
+  const ctx = document.getElementById('destTrendChart');
+  CH.destTrend = new Chart(ctx,{
+    type:'line',
+    data:{
+      labels:months12,
+      datasets:[
+        { label:'Cloud (AWS+Azure+GCP)', data:[36,37,38,38,39,40,40,41,41,42,42,42], borderColor:C.blue,   fill:false, borderWidth:2, pointRadius:2, tension:.35 },
+        { label:'Equinix Fabric',         data:[10,10,10,11,11,11,11,11,11,11,11,11], borderColor:C.teal,  fill:false, borderWidth:2, pointRadius:2, tension:.35 },
+        { label:'Internet',               data:[11,11,11,11,10,10,10,10,10,10,10,10], borderColor:C.purple,fill:false, borderWidth:2, pointRadius:2, tension:.35 },
+        { label:'SaaS',                   data:[8,8,8,9,9,9,9,9,9,9,9,9],             borderColor:C.orange,fill:false, borderWidth:2, pointRadius:2, tension:.35 },
+      ]
+    },
+    options:{responsive:true,plugins:{legend:{position:'top'}},
+      scales:{y:{min:5,max:50,grid:{color:LIGHT_GRID},ticks:{callback:v=>v+'%'}},x:{grid:{display:false}}}
+    }
+  });
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 9 · ARCHITECTURE
+// ═══════════════════════════════════════════════════════════════════════════
+
+const topoTypes = ['Simple (Customer→NE→Cloud)','Dual-homed','Multi-cloud','Service Insertion','HA Pair','Multi-metro','Distributed Enterprise','Network-as-a-Service'];
+CH.topoDist = new Chart(document.getElementById('topoDistChart'), {
+  type:'bar',
+  data:{ labels:topoTypes.map(l=>l.split('(')[0].trim()),
+    datasets:[{ label:'% Deployments', data:[22,18,15,14,12,10,6,3], backgroundColor:[C.blue,C.teal,C.purple,C.orange,C.green,C.red,C.indigo,C.pink].map(c=>alpha(c,.82)), borderRadius:4 }]
+  },
+  options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},
+    scales:{x:{beginAtZero:true,grid:{color:LIGHT_GRID},ticks:{callback:v=>v+'%'}},y:{grid:{display:false}}}
+  }
+});
+
+// Architecture Complexity Index Distribution
+// Score 1=Simple, 2=Dual-homed, 3=Multi-cloud/ServiceIns, 4=HA/Multi-metro, 5=Distributed/NaaS
+CH.complexity = new Chart(document.getElementById('complexityChart'), {
+  type:'bar',
+  data:{ labels:['Score 1 — Simple','Score 2 — Dual-homed','Score 3 — Multi-cloud/Insertion','Score 4 — HA / Multi-metro','Score 5 — Distributed/NaaS'],
+    datasets:[{ label:'Customers', data:[680,520,420,380,200],
+      backgroundColor:[C.green,C.teal,C.blue,C.purple,C.orange].map(c=>alpha(c,.82)), borderRadius:4 }]
+  },
+  options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},
+    scales:{x:{beginAtZero:true,grid:{color:LIGHT_GRID},title:{display:true,text:'Customers'}},y:{grid:{display:false}}}
+  }
+});
+
+CH.complexTrend = new Chart(document.getElementById('complexTrendChart'), {
+  type:'line',
+  data:{
+    labels:quarters,
+    datasets:[
+      { label:'Avg Score',      data:[2.0,2.1,2.1,2.2,2.3,2.4,2.5,2.5,2.6,2.7,2.8,2.8], borderColor:C.blue,   fill:false, borderWidth:2.5, pointRadius:3, tension:.35 },
+      { label:'Score 4+ %',     data:[14,14,15,16,17,18,19,21,22,24,25,26],               borderColor:C.purple, fill:false, borderWidth:2, pointRadius:2, tension:.35, borderDash:[5,3] },
+    ]
+  },
+  options:{responsive:true,plugins:{legend:{position:'top'}},
+    scales:{y:{min:1,max:5,grid:{color:LIGHT_GRID}},x:{grid:{display:false}}}
+  }
+});
+
+// Topology Cards
+(function buildTopoCards() {
+  const topologies = [
+    { title:'Simple', score:1, pct:22, path:'Customer → NE Device → Cloud', desc:'Single-path, single cloud. Most common entry point for NE.' },
+    { title:'Dual-Homed', score:2, pct:18, path:'Customer → NE Device → Cloud\nCustomer → NE Device → Internet', desc:'NE connects to both cloud and internet for redundancy or split-traffic.' },
+    { title:'Multi-Cloud', score:3, pct:15, path:'Customer → NE Device → AWS\nCustomer → NE Device → Azure\nCustomer → NE Device → GCP', desc:'Single NE device reaching multiple cloud providers simultaneously.' },
+    { title:'Service Insertion', score:3, pct:14, path:'Customer → Router VNF → Firewall VNF → Cloud', desc:'Traffic flows through a chain of VNFs — typically router then security.' },
+    { title:'High Availability (HA)', score:4, pct:12, path:'NE-A (active) ↔ NE-B (standby)\n       ↓              ↓\n     Cloud         Cloud', desc:'Paired NE devices with failover. Both stay in sync with BGP/BFD.' },
+    { title:'Multi-Metro', score:4, pct:10, path:'NY NE → Chicago NE → Dallas NE\n  ↓          ↓           ↓\nCloud      Cloud       Cloud', desc:'NE deployed across multiple metros forming a distributed fabric.' },
+    { title:'Distributed Enterprise', score:5, pct:6, path:'Branch A ─┐\nBranch B ─┤→ SD-WAN NE → Cloud\nBranch C ─┘', desc:'Branches connect via SD-WAN NE acting as the hub aggregator.' },
+    { title:'Network-as-a-Service', score:5, pct:3, path:'Customer → NE → Fabric → AWS\n                    ↓\n              Azure / GCP\n                    ↓\n              NSP / SaaS', desc:'NE is a multi-destination network hub — full NaaS pattern.' },
+  ];
+  const container = document.getElementById('topoCards');
+  const scoreColor = s => [null,C.green,C.teal,C.blue,C.purple,C.orange][s];
+  topologies.forEach(t => {
+    const div = document.createElement('div');
+    div.className = 'topology-card';
+    div.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div class="tc-title">${t.title}</div>
+        <span class="pill pill-blue" style="background:${alpha(scoreColor(t.score),.15)};color:${scoreColor(t.score)};">Complexity ${t.score}</span>
+      </div>
+      <div class="tc-sub">${t.desc}</div>
+      <div class="tc-path">${t.path}</div>
+      <div class="tc-bar-wrap">
+        <div class="tc-bar" style="width:${t.pct*3}px;background:${scoreColor(t.score)};"></div>
+        <span class="tc-pct">${t.pct}% of deployments</span>
+      </div>`;
+    container.appendChild(div);
+  });
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 10 · PERFORMANCE
+// ═══════════════════════════════════════════════════════════════════════════
+
+CH.throughput = new Chart(document.getElementById('throughputChart'), {
+  type:'line',
+  data:{
+    labels:months12,
+    datasets:[
+      { label:'Licensed Throughput (100%)', data:[100,100,100,100,100,100,100,100,100,100,100,100], borderColor:'#94a3b8', borderDash:[6,3], borderWidth:1.5, pointRadius:0, fill:false },
+      { label:'Peak Throughput %',          data:[72,74,75,73,76,78,79,78,80,81,82,84],            borderColor:C.red,    borderWidth:2, pointRadius:2, tension:.35, fill:false },
+      { label:'95th Pct %',                 data:[66,68,70,68,71,73,74,73,76,77,78,79],            borderColor:C.orange, borderWidth:2, pointRadius:2, tension:.35, fill:false },
+      { label:'Actual Avg %',               data:[52,53,54,53,55,56,57,57,58,58,59,59],            borderColor:C.blue,   borderWidth:2.5, pointRadius:2, tension:.35, fill:false },
+      { label:'Average Throughput %',       data:[48,49,50,49,51,52,53,53,54,54,55,56],            borderColor:C.teal,   borderWidth:2, pointRadius:2, tension:.35, fill:false },
+    ]
+  },
+  options:{responsive:true,plugins:{legend:{position:'top'}},
+    scales:{y:{min:0,max:110,grid:{color:LIGHT_GRID},ticks:{callback:v=>v+'%'},title:{display:true,text:'% of Licensed Throughput'}},x:{grid:{display:false}}}
+  }
+});
+
+CH.cpuRam = new Chart(document.getElementById('cpuRamChart'), {
+  type:'line',
+  data:{
+    labels:months12,
+    datasets:[
+      { label:'CPU %', data:[40,41,42,42,43,44,45,45,46,46,46,46], borderColor:C.orange, fill:false, borderWidth:2.5, pointRadius:3, tension:.35 },
+      { label:'RAM %', data:[56,58,59,60,61,62,62,63,63,63,63,63], borderColor:C.purple, fill:false, borderWidth:2.5, pointRadius:3, tension:.35 },
+    ]
+  },
+  options:{responsive:true,plugins:{legend:{position:'top'}},
+    scales:{y:{min:20,max:80,grid:{color:LIGHT_GRID},ticks:{callback:v=>v+'%'}},x:{grid:{display:false}}}
+  }
+});
+
+CH.intfUtil = new Chart(document.getElementById('intfUtilChart'), {
+  type:'bar',
+  data:{
+    labels:['Routing VNF','Firewall VNF','SD-WAN VNF','LB / ADC','Cloud GW','Other'],
+    datasets:[{ label:'Interface Util %', data:[62,54,58,49,67,44], backgroundColor:[C.blue,C.red,C.teal,C.orange,C.purple,C.yellow].map(c=>alpha(c,.8)), borderRadius:4 }]
+  },
+  options:{responsive:true,plugins:{legend:{display:false}},
+    scales:{y:{beginAtZero:true,max:100,grid:{color:LIGHT_GRID},ticks:{callback:v=>v+'%'}},x:{grid:{display:false}}}
+  }
+});
+
+// VNF Ceiling (horizontal stacked 100% bar as single dataset band chart)
+CH.vnfCeiling = new Chart(document.getElementById('vnfCeilingChart'), {
+  type:'bar',
+  data:{
+    labels:['VNF Throughput Utilization'],
+    datasets:[
+      { label:'< 50%',   data:[38], backgroundColor:alpha(C.green,.8),  borderRadius:0 },
+      { label:'50–70%',  data:[28], backgroundColor:alpha(C.teal,.8),   borderRadius:0 },
+      { label:'70–80%',  data:[22], backgroundColor:alpha(C.yellow,.85),borderRadius:0 },
+      { label:'80–90%',  data:[8],  backgroundColor:alpha(C.orange,.85),borderRadius:0 },
+      { label:'> 90%',   data:[4],  backgroundColor:alpha(C.red,.85),   borderRadius:[0,4,4,0] },
+    ]
+  },
+  options:{indexAxis:'y',responsive:true,plugins:{legend:{position:'top'}},
+    scales:{x:{stacked:true,beginAtZero:true,max:100,grid:{color:LIGHT_GRID},ticks:{callback:v=>v+'%'}},y:{stacked:true,grid:{display:false}}}
+  }
+});
+
+CH.pkt = new Chart(document.getElementById('pktChart'), {
+  type:'bar',
+  data:{
+    labels:months12,
+    datasets:[
+      { label:'Pkts/sec (M)', data:[4.2,4.4,4.6,4.5,4.8,5.0,5.2,5.3,5.5,5.6,5.8,6.0], backgroundColor:alpha(C.blue,.75), borderRadius:3 },
+      { label:'Drops (K)',    data:[12,11,14,12,11,10,10,9,9,8,8,7],
+        type:'line', borderColor:C.red, backgroundColor:'transparent', borderWidth:2, pointRadius:2, yAxisID:'y2' },
+    ]
+  },
+  options:{responsive:true,plugins:{legend:{position:'top'}},
+    scales:{
+      y:{beginAtZero:true,grid:{color:LIGHT_GRID},title:{display:true,text:'Packets/sec (M)'}},
+      y2:{position:'right',beginAtZero:true,grid:{display:false},title:{display:true,text:'Drops (K)'}},
+      x:{grid:{display:false}}
+    }
+  }
+});
+
+CH.errors = new Chart(document.getElementById('errorsChart'), {
+  type:'bar',
+  data:{
+    labels:months12,
+    datasets:[{ label:'Interface Errors', data:[420,380,450,400,360,330,300,280,260,240,220,200], backgroundColor:months12.map((_,i)=>i<3?alpha(C.red,.8):alpha(C.orange,.7)), borderRadius:3 }]
+  },
+  options:{responsive:true,plugins:{legend:{display:false}},
+    scales:{y:{beginAtZero:true,grid:{color:LIGHT_GRID}},x:{grid:{display:false}}}
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 11 · LIFECYCLE
+// ═══════════════════════════════════════════════════════════════════════════
+
+CH.lifecycle = new Chart(document.getElementById('lifecycleChart'), {
+  type:'bar',
+  data:{
+    labels:months12,
+    datasets:[
+      { label:'New Deployments', data:[220,230,245,240,255,265,270,278,280,282,284,284], backgroundColor:alpha(C.green,.82), borderRadius:3 },
+      { label:'Expansions',      data:[110,115,120,118,125,130,132,136,138,140,142,142], backgroundColor:alpha(C.teal,.8),  borderRadius:3 },
+      { label:'Upgrades',        data:[70,72,75,74,78,80,82,84,85,86,87,87],            backgroundColor:alpha(C.blue,.75), borderRadius:3 },
+      { label:'Downgrades',      data:[18,17,20,18,16,15,14,14,13,12,12,11],            backgroundColor:alpha(C.yellow,.8),borderRadius:3 },
+      { label:'Terminations',    data:[50,48,54,50,47,46,45,44,44,43,43,43],            backgroundColor:alpha(C.red,.75),  borderRadius:3 },
+      { label:'Migrations',      data:[28,29,30,30,31,31,31,31,31,31,31,31],            backgroundColor:alpha(C.purple,.8),borderRadius:3 },
+    ]
+  },
+  options:{responsive:true,plugins:{legend:{position:'top'}},
+    scales:{y:{beginAtZero:true,grid:{color:LIGHT_GRID}},x:{grid:{display:false}}}
+  }
+});
+
+CH.deployDuration = new Chart(document.getElementById('deployDurationChart'), {
+  type:'doughnut',
+  data:{ labels:['< 30 days','30–90 days','3–6 months','6–12 months','1–3 years','3+ years'],
+    datasets:[{ data:[6,12,18,22,28,14], backgroundColor:[C.red,C.orange,C.yellow,C.green,C.blue,C.purple].map(c=>alpha(c,.85)), borderWidth:2, borderColor:'#ffffff', hoverOffset:6 }]
+  },
+  options:{responsive:true,cutout:'52%',plugins:{legend:{position:'right'}}}
+});
+
+CH.consumptionMix = new Chart(document.getElementById('consumptionMixChart'), {
+  type:'doughnut',
+  data:{ labels:['BYOL','Equinix Subscription','Vendor-Managed','Pay-as-you-go'],
+    datasets:[{ data:[42,38,12,8], backgroundColor:[C.blue,C.teal,C.purple,C.orange].map(c=>alpha(c,.85)), borderWidth:2, borderColor:'#ffffff', hoverOffset:6 }]
+  },
+  options:{responsive:true,cutout:'52%',plugins:{legend:{position:'right'}}}
+});
+
+CH.lifecycleTrend = new Chart(document.getElementById('lifecycleTrendChart'), {
+  type:'line',
+  data:{
+    labels:months12,
+    datasets:[
+      { label:'New+Expansion (gross adds)', data:[330,345,365,358,380,395,402,414,418,422,426,426], borderColor:C.green, fill:false, borderWidth:2.5, pointRadius:3, tension:.35 },
+      { label:'Terminations',               data:[50,48,54,50,47,46,45,44,44,43,43,43],             borderColor:C.red,   fill:false, borderWidth:2, pointRadius:2, tension:.35 },
+      { label:'Net Device Growth',          data:[280,297,311,308,333,349,357,370,374,379,383,383],  borderColor:C.blue,  fill:false, borderWidth:2.5, pointRadius:3, tension:.35, borderDash:[5,3] },
+    ]
+  },
+  options:{responsive:true,plugins:{legend:{position:'top'}},
+    scales:{y:{beginAtZero:true,grid:{color:LIGHT_GRID}},x:{grid:{display:false}}}
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 12 · SEGMENTS & GTM
+// ═══════════════════════════════════════════════════════════════════════════
+
+CH.custSegment = new Chart(document.getElementById('custSegmentChart'), {
+  type:'doughnut',
+  data:{ labels:['Enterprise','Service Provider','Cloud / SaaS','Financial Services','Manufacturing','Retail','Healthcare','Government','Other'],
+    datasets:[{ data:[34,18,14,12,7,5,4,3,3], backgroundColor:[C.blue,C.teal,C.purple,C.orange,C.green,C.pink,C.red,C.indigo,C.yellow].map(c=>alpha(c,.85)), borderWidth:2, borderColor:'#ffffff', hoverOffset:6 }]
+  },
+  options:{responsive:true,cutout:'50%',plugins:{legend:{position:'right'}}}
+});
+
+CH.gtmMotion = new Chart(document.getElementById('gtmMotionChart'), {
+  type:'doughnut',
+  data:{ labels:['Direct','Channel','Reseller','MSP','Distributor','Strategic Partner'],
+    datasets:[{ data:[32,28,16,12,7,5], backgroundColor:[C.blue,C.teal,C.orange,C.purple,C.red,C.green].map(c=>alpha(c,.85)), borderWidth:2, borderColor:'#ffffff', hoverOffset:6 }]
+  },
+  options:{responsive:true,cutout:'50%',plugins:{legend:{position:'right'}}}
+});
+
+CH.buyerPersona = new Chart(document.getElementById('buyerPersonaChart'), {
+  type:'bar',
+  data:{
+    labels:['Network Architect','Network Operations','Security','Cloud Networking','Infrastructure','Application','MSP','Service Provider'],
+    datasets:[{ label:'% of Deals', data:[31,22,16,12,8,5,4,2], backgroundColor:[C.blue,C.teal,C.red,C.purple,C.green,C.orange,C.indigo,C.pink].map(c=>alpha(c,.82)), borderRadius:4 }]
+  },
+  options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},
+    scales:{x:{beginAtZero:true,grid:{color:LIGHT_GRID},ticks:{callback:v=>v+'%'}},y:{grid:{display:false}}}
+  }
+});
+
+(function(){
+  const ctx = document.getElementById('segRevChart');
+  CH.segRev = new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:months12,
+      datasets:[
+        { label:'Enterprise',      data:[980,1010,1040,1060,1090,1120,1150,1190,1220,1250,1280,1310], backgroundColor:alpha(C.blue,.85),   borderRadius:0 },
+        { label:'Service Provider',data:[460,475,490,502,515,528,542,558,574,590,606,624],             backgroundColor:alpha(C.teal,.8),    borderRadius:0 },
+        { label:'Cloud/SaaS',      data:[310,322,335,348,362,376,390,406,422,438,454,470],             backgroundColor:alpha(C.purple,.8),  borderRadius:0 },
+        { label:'Financial Svc',   data:[260,271,282,293,305,317,329,342,356,370,384,399],             backgroundColor:alpha(C.orange,.8),  borderRadius:0 },
+        { label:'Other',           data:[190,198,206,215,224,234,244,254,264,274,286,298],             backgroundColor:alpha(C.green,.75),  borderRadius:[4,4,0,0] },
+      ]
+    },
+    options:{responsive:true,plugins:{legend:{position:'top'}},
+      scales:{y:{stacked:true,beginAtZero:true,grid:{color:LIGHT_GRID},title:{display:true,text:'MRR ($K)'}},x:{stacked:true,grid:{display:false}}}
+    }
+  });
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TAB 13 · RATIOS & METRO
+// ═══════════════════════════════════════════════════════════════════════════
+
+CH.ratioTrend = new Chart(document.getElementById('ratioTrendChart'), {
+  type:'line',
+  data:{
+    labels:quarters,
+    datasets:[
+      { label:'Multi-VNF Ratio %',    data:[18,20,21,23,24,26,27,28,29,30,32,34], borderColor:C.blue,   fill:false, borderWidth:2.5, pointRadius:3, tension:.35 },
+      { label:'Multi-Metro Ratio %',  data:[12,12,13,13,14,15,15,16,17,17,18,19], borderColor:C.teal,   fill:false, borderWidth:2, pointRadius:2, tension:.35 },
+      { label:'Conn. Density (x)',    data:[2.6,2.7,2.8,2.8,2.9,3.0,3.0,3.1,3.2,3.2,3.3,3.4], borderColor:C.purple, fill:false, borderWidth:2, pointRadius:2, tension:.35, yAxisID:'y2' },
+      { label:'Production Adoption %',data:[56,58,60,62,63,64,65,67,68,69,70,71], borderColor:C.green,  fill:false, borderWidth:2, pointRadius:2, tension:.35, borderDash:[5,3] },
+    ]
+  },
+  options:{responsive:true,plugins:{legend:{position:'top'}},
+    scales:{
+      y:{min:0,max:50,grid:{color:LIGHT_GRID},ticks:{callback:v=>v+'%'}},
+      y2:{position:'right',min:2,max:4,grid:{display:false},title:{display:true,text:'Density (x)'}},
+      x:{grid:{display:false}}
+    }
+  }
+});
+
+CH.metroService = new Chart(document.getElementById('metroServiceChart'), {
+  type:'bar',
+  data:{
+    labels:['SV','NY','DA','AM','LD','SY','TK','FR','SG','LA'],
+    datasets:[
+      { label:'Routing/WAN', data:[86,78,67,61,53,49,45,40,38,34], backgroundColor:alpha(C.blue,.85),   borderRadius:0 },
+      { label:'Firewall',    data:[62,56,48,44,38,35,32,29,27,24], backgroundColor:alpha(C.red,.8),    borderRadius:0 },
+      { label:'SD-WAN',      data:[80,70,60,55,48,44,40,36,33,30], backgroundColor:alpha(C.teal,.8),   borderRadius:0 },
+      { label:'Cloud NW',    data:[50,44,40,36,32,29,26,23,22,18], backgroundColor:alpha(C.purple,.75),borderRadius:0 },
+      { label:'Other',       data:[32,32,25,24,19,18,17,17,15,14], backgroundColor:alpha(C.orange,.7), borderRadius:[4,4,0,0] },
+    ]
+  },
+  options:{responsive:true,plugins:{legend:{position:'top'}},
+    scales:{y:{stacked:true,beginAtZero:true,grid:{color:LIGHT_GRID}},x:{stacked:true,grid:{display:false}}}
+  }
+});
+
+CH.metroRev = new Chart(document.getElementById('metroRevChart'), {
+  type:'bar',
+  data:{
+    labels:['SV','NY','DA','AM','LD','SY','TK','FR','SG','LA','DC','SE'],
+    datasets:[{ label:'MRR ($K)', data:[640,580,490,460,400,370,340,310,290,260,240,200],
+      backgroundColor:alpha(C.blue,.82), borderRadius:5 }]
+  },
+  options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},
+    scales:{x:{beginAtZero:true,grid:{color:LIGHT_GRID},title:{display:true,text:'MRR ($K)'}},y:{grid:{display:false}}}
+  }
+});
+
+// Metro Utilization Table
+(function buildMetroUtilTable() {
+  const data = [
+    { metro:'Silicon Valley', dev:310, svc:'Routing/WAN', tput:'4.2 Gbps', mrr:'$640K', util:0.72 },
+    { metro:'New York',       dev:280, svc:'SD-WAN',      tput:'3.8 Gbps', mrr:'$580K', util:0.68 },
+    { metro:'Dallas',         dev:240, svc:'Firewall',    tput:'3.2 Gbps', mrr:'$490K', util:0.65 },
+    { metro:'Amsterdam',      dev:220, svc:'Cloud NW',    tput:'3.0 Gbps', mrr:'$460K', util:0.71 },
+    { metro:'London',         dev:190, svc:'Routing/WAN', tput:'2.6 Gbps', mrr:'$400K', util:0.69 },
+    { metro:'Sydney',         dev:175, svc:'SD-WAN',      tput:'2.4 Gbps', mrr:'$370K', util:0.62 },
+    { metro:'Tokyo',          dev:160, svc:'Cloud NW',    tput:'2.2 Gbps', mrr:'$340K', util:0.74 },
+    { metro:'Frankfurt',      dev:145, svc:'Firewall',    tput:'2.0 Gbps', mrr:'$310K', util:0.67 },
+    { metro:'Singapore',      dev:135, svc:'Routing/WAN', tput:'1.8 Gbps', mrr:'$290K', util:0.70 },
+    { metro:'Los Angeles',    dev:120, svc:'SD-WAN',      tput:'1.6 Gbps', mrr:'$260K', util:0.58 },
+    { metro:'Washington DC',  dev:110, svc:'Firewall',    tput:'1.5 Gbps', mrr:'$240K', util:0.63 },
+    { metro:'Seattle',        dev:98,  svc:'Cloud NW',    tput:'1.3 Gbps', mrr:'$200K', util:0.55 },
+    { metro:'Chicago',        dev:90,  svc:'Routing/WAN', tput:'1.2 Gbps', mrr:'$185K', util:0.61 },
+    { metro:'Paris',          dev:85,  svc:'Cloud NW',    tput:'1.1 Gbps', mrr:'$174K', util:0.64 },
+    { metro:'Hong Kong',      dev:78,  svc:'Firewall',    tput:'1.0 Gbps', mrr:'$162K', util:0.66 },
+  ];
+  const tbody = document.getElementById('metroUtilBody');
+  data.forEach(r => {
+    const pct = Math.round(r.util*100);
+    const barColor = r.util>=0.75?C.orange:r.util>=0.65?C.blue:C.green;
+    tbody.innerHTML += `<tr>
+      <td><strong>${r.metro}</strong></td>
+      <td>${r.dev}</td>
+      <td><span class="pill pill-blue" style="font-size:10px;">${r.svc}</span></td>
+      <td>${r.tput}</td>
+      <td style="font-weight:600;">${r.mrr}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="flex:1;background:var(--eq-surface2);border-radius:4px;height:8px;overflow:hidden;">
+            <div style="width:${pct}%;height:100%;background:${barColor};border-radius:4px;"></div>
+          </div>
+          <span style="font-size:12px;font-weight:700;color:${barColor};">${pct}%</span>
+        </div>
+      </td>
+      <td style="font-size:12px;color:${r.util>=0.70?C.orange:C.teal};">${r.util>=0.75?'⚠ High':r.util>=0.65?'● Moderate':'✓ Healthy'}</td>
+    </tr>`;
+  });
+})();
+
+// ─── Kick off: apply theme then fetch ─────────────────────────────────────
+(function bootstrap() {
+  // Apply saved theme — default to dark
+  const savedTheme = localStorage.getItem('eq_theme') || 'dark';
+  setTheme(savedTheme);
+
+  if (EAP.token) {
+    refreshAll();
+    scheduleAutoRefresh();
+  } else {
+    setStatus('sample');
+    setRefreshMeta();
+  }
+})();
+</script>
+</body>
+</html>
