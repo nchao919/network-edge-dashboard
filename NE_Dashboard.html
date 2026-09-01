@@ -501,6 +501,34 @@
   </div>
 </div>
 
+<!-- ─── Tableau Explorer Modal ──────────────────────────────────────────── -->
+<div class="modal-backdrop" id="tableauExplorerModal">
+  <div class="modal" style="width:680px;max-height:80vh;overflow-y:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h3 style="margin:0">📊 Tableau Workbook Explorer</h3>
+      <button class="btn btn-secondary" onclick="document.getElementById('tableauExplorerModal').classList.remove('open')" style="padding:4px 10px;">✕</button>
+    </div>
+    <p style="font-size:12px;color:var(--modal-p);margin-bottom:16px;">
+      Browse the workbooks and views your Tableau PAT can access. Copy a <strong>View ID</strong> to wire live data into any chart.
+      Proxy server: <strong id="tblProxyStatus">checking…</strong>
+    </p>
+    <div id="tblExplorerBody">
+      <p style="color:var(--eq-text-muted);text-align:center;padding:24px">Click "Tableau Explorer" to load…</p>
+    </div>
+  </div>
+</div>
+
+<style>
+  .tbl-wb-item { border: 1px solid var(--eq-border); border-radius: 7px; margin-bottom: 8px; overflow: hidden; }
+  .tbl-wb-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; cursor: pointer; gap: 12px;
+    background: var(--eq-surface2); font-size: 13px; font-weight: 600;
+  }
+  .tbl-wb-header:hover { background: var(--eq-border); }
+  .tbl-expand-icon { font-size: 10px; color: var(--eq-text-muted); flex-shrink: 0; }
+</style>
+
 <header>
   <div class="logo">
     <div class="logo-mark">
@@ -517,6 +545,9 @@
     <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">
       <span id="themeIcon">☀️</span>
       <span id="themeLabel">Light</span>
+    </button>
+    <button class="theme-toggle" id="tableauExplorerBtn" onclick="openTableauExplorer()" style="display:none;background:rgba(123,47,190,.25);border-color:rgba(123,47,190,.5);color:#c4a6f5;">
+      <span>📊</span><span>Tableau Explorer</span>
     </button>
     <div class="data-badge" id="statusBadge" onclick="openModal()">⚠ Sample Data — Connect EAP API</div>
     <div class="header-meta" id="refreshMeta">Last refreshed: —</div>
@@ -1614,18 +1645,58 @@ function setRefreshMeta() {
     });
 }
 
-// ─── Core fetch wrapper ────────────────────────────────────────────────────
-// Returns parsed JSON on success, null on any failure (logs to console).
-async function eapFetch(endpointKey) {
-  if (!EAP.token) return null;
-  const url = `${EAP.baseUrl}/${EAP.endpoints[endpointKey]}`;
+// ─── Proxy detection ───────────────────────────────────────────────────────
+// When the dashboard is served from localhost (via proxy_server.py), all API
+// calls route through /proxy/* so CORS never blocks them and tokens stay
+// server-side. When opened as file://, falls back to direct fetch (will CORS-
+// fail on most APIs — run proxy_server.py to fix this).
+const PROXY = {
+  available: false,
+  eapConfigured: false,
+  tableauConfigured: false,
+  tableauSiteId: '',
+  tableauServer: '',
+  tableauApiVersion: '3.21',
+};
+
+async function detectProxy() {
+  if (window.location.protocol === 'file:') return false;
   try {
-    const res = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${EAP.token}`,
-        'Accept': 'application/json',
-      }
-    });
+    const res = await fetch('/proxy/config', { signal: AbortSignal.timeout(2000) });
+    if (!res.ok) return false;
+    const cfg = await res.json();
+    PROXY.available          = true;
+    PROXY.eapConfigured      = cfg.eap_configured;
+    PROXY.tableauConfigured  = cfg.tableau_configured;
+    PROXY.tableauSiteId      = cfg.tableau_site_id || '';
+    PROXY.tableauServer      = cfg.tableau_server  || '';
+    PROXY.tableauApiVersion  = cfg.tableau_api_version || '3.21';
+    console.log('[Proxy] Connected — EAP:', cfg.eap_configured, '| Tableau:', cfg.tableau_configured);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ─── EAP fetch wrapper ─────────────────────────────────────────────────────
+// Routes through local proxy when available (no CORS); falls back to direct.
+async function eapFetch(endpointKey) {
+  const path = EAP.endpoints[endpointKey];
+  if (!path) return null;
+
+  let url, headers = { 'Accept': 'application/json' };
+
+  if (PROXY.available) {
+    // Server-side proxy adds Bearer token — browser never needs it
+    url = `/proxy/eap/${path}`;
+  } else {
+    if (!EAP.token) return null;
+    url = `${EAP.baseUrl}/${path}`;
+    headers['Authorization'] = `Bearer ${EAP.token}`;
+  }
+
+  try {
+    const res = await fetch(url, { headers });
     if (!res.ok) {
       console.warn(`[EAP] ${endpointKey} → HTTP ${res.status} ${res.statusText}`);
       return null;
@@ -1635,6 +1706,173 @@ async function eapFetch(endpointKey) {
     console.warn(`[EAP] ${endpointKey} fetch failed:`, err.message);
     return null;
   }
+}
+
+// ─── Tableau integration ───────────────────────────────────────────────────
+// All Tableau calls route through /proxy/tableau/* on the local proxy server.
+// The proxy handles PAT sign-in and injects X-Tableau-Auth on every request.
+
+async function tableauSignIn() {
+  try {
+    const res = await fetch('/proxy/tableau/signin', { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const d = await res.json();
+    PROXY.tableauSiteId = d.site_id;
+    console.log('[Tableau] Signed in, site_id:', d.site_id);
+    return d.site_id;
+  } catch (err) {
+    console.warn('[Tableau] Sign-in failed:', err.message);
+    return null;
+  }
+}
+
+// Low-level Tableau REST GET — returns parsed JSON or null
+async function tableauGet(apiPath) {
+  if (!PROXY.available || !PROXY.tableauConfigured) return null;
+  try {
+    const res = await fetch(`/proxy/tableau${apiPath}`, {
+      headers: { 'Accept': 'application/json' }
+    });
+    if (res.status === 401) {
+      // Token expired — re-sign-in and retry once
+      await tableauSignIn();
+      const retry = await fetch(`/proxy/tableau${apiPath}`, { headers: { 'Accept': 'application/json' } });
+      if (!retry.ok) return null;
+      return await retry.json();
+    }
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.warn('[Tableau] GET', apiPath, 'failed:', err.message);
+    return null;
+  }
+}
+
+// Fetch all workbooks the PAT account can see
+async function tableauListWorkbooks() {
+  const siteId = PROXY.tableauSiteId;
+  if (!siteId) { console.warn('[Tableau] No site_id — sign in first'); return []; }
+  const data = await tableauGet(`/sites/${siteId}/workbooks?pageSize=100`);
+  return data?.workbooks?.workbook || [];
+}
+
+// Fetch all views (sheets) in a workbook
+async function tableauListViews(workbookId) {
+  const siteId = PROXY.tableauSiteId;
+  if (!siteId) return [];
+  const data = await tableauGet(`/sites/${siteId}/workbooks/${workbookId}/views`);
+  return data?.views?.view || [];
+}
+
+// Fetch the summary data (CSV) of a specific view, parsed into [{col: val}]
+async function tableauGetViewData(viewId) {
+  const siteId = PROXY.tableauSiteId;
+  if (!siteId) return null;
+  try {
+    const res = await fetch(`/proxy/tableau/sites/${siteId}/views/${viewId}/data`, {
+      headers: { 'Accept': 'text/csv' }
+    });
+    if (!res.ok) return null;
+    const csv = await res.text();
+    return parseCSV(csv);
+  } catch (err) {
+    console.warn('[Tableau] View data fetch failed:', err.message);
+    return null;
+  }
+}
+
+// Minimal CSV → [{col: val}] parser
+function parseCSV(csv) {
+  const lines = csv.trim().split('\n');
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
+  return lines.slice(1).map(line => {
+    const vals = line.match(/(".*?"|[^,]+|(?<=,)(?=,)|^(?=,)|(?<=,)$)/g) || [];
+    const obj = {};
+    headers.forEach((h, i) => {
+      obj[h] = (vals[i] || '').replace(/^"|"$/g, '').trim();
+    });
+    return obj;
+  });
+}
+
+// ─── Tableau Explorer (discover workbooks + views available to your PAT) ───
+async function openTableauExplorer() {
+  if (!PROXY.available) {
+    alert('Run proxy_server.py first, then open the dashboard at http://localhost:8080/NE_Dashboard.html');
+    return;
+  }
+  if (!PROXY.tableauConfigured) {
+    alert('Tableau not configured — fill in pat_name and pat_secret in dashboard_config.json, then restart the proxy.');
+    return;
+  }
+
+  const modal = document.getElementById('tableauExplorerModal');
+  modal.classList.add('open');
+  document.getElementById('tblExplorerBody').innerHTML =
+    '<p style="color:var(--eq-text-muted);text-align:center;padding:24px">Loading workbooks…</p>';
+
+  if (!PROXY.tableauSiteId) await tableauSignIn();
+
+  const workbooks = await tableauListWorkbooks();
+  if (!workbooks.length) {
+    document.getElementById('tblExplorerBody').innerHTML =
+      '<p style="color:var(--eq-red);padding:16px">No workbooks found — check your PAT permissions and site_name in dashboard_config.json.</p>';
+    return;
+  }
+
+  let html = `<p style="font-size:12px;color:var(--eq-text-muted);margin-bottom:16px">Found <strong>${workbooks.length}</strong> workbooks. Click a workbook to see its views and IDs to use in the dashboard.</p>`;
+  for (const wb of workbooks) {
+    html += `<div class="tbl-wb-item">
+      <div class="tbl-wb-header" onclick="toggleWbViews('${wb.id}')">
+        <span>📊 ${wb.name}</span>
+        <span style="font-size:11px;color:var(--eq-text-muted)">${wb.project?.name || ''} · ID: <code>${wb.id}</code></span>
+        <span class="tbl-expand-icon" id="icon-${wb.id}">▶</span>
+      </div>
+      <div class="tbl-wb-views" id="views-${wb.id}" style="display:none;padding:8px 16px 8px 28px">
+        <em style="font-size:12px;color:var(--eq-text-muted)">Loading views…</em>
+      </div>
+    </div>`;
+  }
+  document.getElementById('tblExplorerBody').innerHTML = html;
+}
+
+async function toggleWbViews(wbId) {
+  const panel = document.getElementById(`views-${wbId}`);
+  const icon  = document.getElementById(`icon-${wbId}`);
+  if (panel.style.display !== 'none') {
+    panel.style.display = 'none'; icon.textContent = '▶'; return;
+  }
+  panel.style.display = 'block'; icon.textContent = '▼';
+  if (panel.dataset.loaded) return;
+  panel.dataset.loaded = '1';
+  const views = await tableauListViews(wbId);
+  if (!views.length) { panel.innerHTML = '<em style="font-size:12px;color:var(--eq-text-muted)">No views found.</em>'; return; }
+  panel.innerHTML = views.map(v => `
+    <div style="padding:5px 0;border-bottom:1px solid var(--eq-border);font-size:12px">
+      📄 <strong>${v.name}</strong>
+      <span style="color:var(--eq-text-muted)"> — View ID: </span>
+      <code style="background:var(--eq-surface2);padding:1px 5px;border-radius:3px;font-size:11px">${v.id}</code>
+      <button onclick="previewView('${v.id}','${v.name}')"
+        style="margin-left:8px;font-size:10px;padding:2px 7px;background:var(--eq-red);color:white;border:none;border-radius:3px;cursor:pointer">
+        Preview data
+      </button>
+    </div>`).join('');
+}
+
+async function previewView(viewId, viewName) {
+  const rows = await tableauGetViewData(viewId);
+  if (!rows || !rows.length) { alert('No data returned for this view.'); return; }
+  const cols = Object.keys(rows[0]);
+  let table = `<div style="margin-top:16px"><strong>${viewName}</strong> — first ${Math.min(5, rows.length)} rows`;
+  table += `<div style="overflow-x:auto;margin-top:8px"><table class="data-table"><thead><tr>`;
+  cols.forEach(c => { table += `<th>${c}</th>`; });
+  table += '</tr></thead><tbody>';
+  rows.slice(0, 5).forEach(row => {
+    table += '<tr>'; cols.forEach(c => { table += `<td>${row[c]}</td>`; }); table += '</tr>';
+  });
+  table += `</tbody></table></div><p style="font-size:11px;color:var(--eq-text-muted);margin-top:6px">View ID: <code>${viewId}</code> — use this in tableauGetViewData('${viewId}')</p></div>`;
+  document.getElementById('tblExplorerBody').insertAdjacentHTML('beforeend', table);
 }
 
 // ─── Chart store (populated during init, mutated on refresh) ──────────────
@@ -3255,13 +3493,24 @@ CH.metroRev = new Chart(document.getElementById('metroRevChart'), {
   });
 })();
 
-// ─── Kick off: apply theme then fetch ─────────────────────────────────────
-(function bootstrap() {
-  // Apply saved theme — default to dark
+// ─── Kick off: detect proxy → apply theme → fetch ─────────────────────────
+(async function bootstrap() {
+  // Apply saved theme first so the UI isn't unstyled while we detect the proxy
   const savedTheme = localStorage.getItem('eq_theme') || 'dark';
   setTheme(savedTheme);
 
-  if (EAP.token) {
+  // Check if the local proxy server is running
+  await detectProxy();
+
+  // Update the status badge to reflect proxy + Tableau availability
+  updateStatusBadge();
+
+  if (PROXY.available && PROXY.eapConfigured) {
+    // Proxy is running and EAP is configured in dashboard_config.json
+    refreshAll();
+    scheduleAutoRefresh();
+  } else if (EAP.token) {
+    // No proxy but a token is saved from the old modal — try direct fetch
     refreshAll();
     scheduleAutoRefresh();
   } else {
@@ -3269,6 +3518,28 @@ CH.metroRev = new Chart(document.getElementById('metroRevChart'), {
     setRefreshMeta();
   }
 })();
+
+function updateStatusBadge() {
+  const badge = document.getElementById('statusBadge');
+  const tblBtn = document.getElementById('tableauExplorerBtn');
+  if (PROXY.available) {
+    const parts = [];
+    if (PROXY.eapConfigured)     parts.push('EAP ✓');
+    if (PROXY.tableauConfigured) parts.push('Tableau ✓');
+    if (parts.length) {
+      badge.className   = 'data-badge live';
+      badge.textContent = `🔌 Proxy: ${parts.join(' · ')}`;
+    } else {
+      badge.className   = 'data-badge loading';
+      badge.textContent = '🔌 Proxy running — add credentials to dashboard_config.json';
+    }
+    if (tblBtn) tblBtn.style.display = 'flex';
+  } else {
+    badge.className   = 'data-badge';
+    badge.textContent = '⚠ Sample Data — Click to Connect EAP';
+    if (tblBtn) tblBtn.style.display = 'none';
+  }
+}
 </script>
 </body>
 </html>

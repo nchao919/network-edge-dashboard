@@ -1,0 +1,18 @@
+{
+  "_readme": "Copy this file to dashboard_config.json and fill in your credentials. dashboard_config.json is gitignored — it never gets committed.",
+
+  "eap": {
+    "base_url": "https://eap.equinix.com/api/v1",
+    "token":    "PASTE_YOUR_EAP_BEARER_TOKEN_HERE"
+  },
+
+  "tableau": {
+    "server_url":   "https://PASTE_YOUR_TABLEAU_SERVER_URL_HERE",
+    "api_version":  "3.21",
+    "site_name":    "",
+    "_site_name_note": "Leave blank for the Default site, or enter the site contentUrl (e.g. 'EquinixAnalytics')",
+    "pat_name":     "PASTE_YOUR_PAT_NAME_HERE",
+    "pat_secret":   "PASTE_YOUR_PAT_SECRET_HERE",
+    "_pat_note":    "Create a PAT at: Tableau Server → your account icon → Account Settings → Personal Access Tokens"
+  }
+}
